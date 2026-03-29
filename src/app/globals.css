@@ -3,18 +3,55 @@
 @tailwind utilities;
 
 :root {
-  --background: #f8f7f4;
-  --foreground: #1a2332;
-  --accent: #4a7c6f;
-  --accent-light: #e8f0ec;
-  --card: #ffffff;
-  --muted: #94a3b8;
-  --border: #e2e8f0;
-  --success: #22c55e;
-  --warning: #f59e0b;
+  --bg-primary: #f9fafb;
+  --bg-card: #ffffff;
+  --bg-elevated: #f3f4f6;
+  --bg-input: #ffffff;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --border: #e5e7eb;
+  --border-active: #d1d5db;
+  --ring-offset: #f9fafb;
+  --heatmap-empty: #f3f4f6;
+  --heatmap-fill: 34, 197, 94;
+  --timer-bg: #111827;
+  --modal-overlay: rgba(0, 0, 0, 0.5);
+}
+
+.dark {
+  --bg-primary: #0a0a0f;
+  --bg-card: #141419;
+  --bg-elevated: #1e1e26;
+  --bg-input: #1e1e26;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --border: #2a2a35;
+  --border-active: #3f3f50;
+  --ring-offset: #0a0a0f;
+  --heatmap-empty: #1e1e26;
+  --heatmap-fill: 34, 197, 94;
+  --timer-bg: #1e1e26;
+  --modal-overlay: rgba(0, 0, 0, 0.7);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+@keyframes confetti-burst {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(
+      calc(-50% + var(--tx)),
+      calc(-50% + var(--ty))
+    ) scale(0);
+    opacity: 0;
+  }
 }
