@@ -9,6 +9,7 @@ import {
   type DayPlan,
   type WorkoutSession,
 } from "@/lib/workoutData";
+import RecoveryPanel, { RecoveryBanner, type RecoveryData } from "@/components/RecoveryPanel";
 
 // ── Persistence ──────────────────────────────────────────────────────
 
@@ -635,6 +636,8 @@ export default function Home() {
     enabled: false,
     times: { Monday: "17:00", Tuesday: "17:00", Wednesday: "07:00", Thursday: "12:00", Friday: "17:00", Saturday: "09:00", Sunday: "10:00" },
   });
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryData, setRecoveryData] = useState<RecoveryData>({});
 
   useEffect(() => {
     setLevel(load("workout-level", "beginner" as Level));
@@ -647,6 +650,7 @@ export default function Home() {
       enabled: false,
       times: { Monday: "17:00", Tuesday: "17:00", Wednesday: "07:00", Thursday: "12:00", Friday: "17:00", Saturday: "09:00", Sunday: "10:00" },
     }));
+    setRecoveryData(load("workout-recovery", {}));
     setMounted(true);
   }, []);
 
@@ -718,11 +722,18 @@ export default function Home() {
               <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>{getGreeting()}</p>
               <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Workout Tracker</h1>
             </div>
-            <button onClick={() => setShowSettings(!showSettings)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
-              style={{ background: "var(--bg-elevated)" }}>
-              <span className="text-lg">{showSettings ? "✕" : "⚙️"}</span>
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => setShowRecovery(true)}
+                className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
+                style={{ background: "var(--bg-elevated)" }}>
+                <span className="text-lg">💤</span>
+              </button>
+              <button onClick={() => setShowSettings(!showSettings)}
+                className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
+                style={{ background: "var(--bg-elevated)" }}>
+                <span className="text-lg">{showSettings ? "✕" : "⚙️"}</span>
+              </button>
+            </div>
           </div>
 
           {showSettings && (
@@ -782,6 +793,10 @@ export default function Home() {
               </div>
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>{activePlan.focus}</p>
             </div>
+
+            {/* Recovery banner - shows if today's data exists */}
+            {selectedDay === todayName && <div className="mb-4"><RecoveryBanner data={recoveryData} /></div>}
+
             <div className="space-y-4">
               {activePlan.sessions.map((session, si) => {
                 const key = `${wk}:${activePlan.day}:${si}`;
@@ -821,6 +836,11 @@ export default function Home() {
         <LogModal session={logModal.session} logKey={logModal.key} logs={logs}
           onSave={saveLog} onClose={() => setLogModal(null)} />
       )}
+
+      <RecoveryPanel isOpen={showRecovery} onClose={() => {
+        setShowRecovery(false);
+        setRecoveryData(load("workout-recovery", {}));
+      }} />
 
     </main>
   );
