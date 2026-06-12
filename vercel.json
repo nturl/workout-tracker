@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-recovery",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/sync-eight-sleep",
+      "schedule": "15 11 * * *"
+    },
+    {
+      "path": "/api/cron/send-reminder",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/send-status",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
