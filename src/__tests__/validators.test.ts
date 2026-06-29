@@ -27,6 +27,46 @@ describe("syncBodySchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts valid habitDefs with a version", () => {
+    const result = syncBodySchema.safeParse({
+      habitDefs: [
+        { id: "morning-run", label: "Morning Run" },
+        { id: "supplementsAm", label: "Supplements (AM)" },
+      ],
+      habitDefsVersion: 7,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects more than 30 habitDefs", () => {
+    const habitDefs = Array.from({ length: 31 }, (_, i) => ({ id: `h${i}`, label: `Habit ${i}` }));
+    expect(syncBodySchema.safeParse({ habitDefs }).success).toBe(false);
+  });
+
+  it("rejects a habit id with illegal characters", () => {
+    expect(syncBodySchema.safeParse({ habitDefs: [{ id: "bad id!", label: "Bad" }] }).success).toBe(false);
+  });
+
+  it("rejects a habit id over 64 chars", () => {
+    expect(syncBodySchema.safeParse({ habitDefs: [{ id: "a".repeat(65), label: "Too long" }] }).success).toBe(false);
+  });
+
+  it("rejects a habit label over 100 chars", () => {
+    expect(syncBodySchema.safeParse({ habitDefs: [{ id: "ok", label: "a".repeat(101) }] }).success).toBe(false);
+  });
+
+  it("rejects an empty habit label", () => {
+    expect(syncBodySchema.safeParse({ habitDefs: [{ id: "ok", label: "" }] }).success).toBe(false);
+  });
+
+  it("rejects a negative habitDefsVersion", () => {
+    expect(syncBodySchema.safeParse({ habitDefsVersion: -1 }).success).toBe(false);
+  });
+
+  it("rejects a non-integer habitDefsVersion", () => {
+    expect(syncBodySchema.safeParse({ habitDefsVersion: 1.5 }).success).toBe(false);
+  });
 });
 
 describe("recoveryActionSchema", () => {

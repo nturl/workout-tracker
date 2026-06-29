@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useWorkoutStore } from "./useWorkoutStore";
-import type { SyncData } from "@/types/workout";
+import type { SyncData, SyncPushResponse } from "@/types/workout";
 
 async function fetchSyncData(): Promise<SyncData | null> {
   const res = await fetch("/api/sync", { cache: "no-store" });
@@ -12,18 +12,20 @@ async function fetchSyncData(): Promise<SyncData | null> {
   return data;
 }
 
-async function pushSyncData(payload: SyncData): Promise<void> {
+async function pushSyncData(payload: SyncData): Promise<SyncPushResponse> {
   const res = await fetch("/api/sync", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Requested-With": "fetch" },
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("Sync push failed");
+  return res.json();
 }
 
 export function useSync(enabled: boolean) {
   const hydrateFromSync = useWorkoutStore((s) => s.hydrateFromSync);
   const getSyncPayload = useWorkoutStore((s) => s.getSyncPayload);
+  const applyHabitDefsAck = useWorkoutStore((s) => s.applyHabitDefsAck);
   const hydrated = useRef(false);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
@@ -46,6 +48,14 @@ export function useSync(enabled: boolean) {
     mutationFn: pushSyncData,
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * Math.pow(2, attempt), 10000),
+    // Adopt the server's canonical habit list + version so a clock-skewed device
+    // can't strand this device's edit, and so a rejected (stale) push converges.
+    onSuccess: (res, variables) => {
+      applyHabitDefsAck(
+        { habitDefs: res?.habitDefs, habitDefsVersion: res?.habitDefsVersion },
+        variables.habitDefs ?? [],
+      );
+    },
   });
 
   // Hydrate store from server data - initial load + subsequent refreshes (e.g. after Oura sync)
@@ -99,6 +109,7 @@ export function useSync(enabled: boolean) {
       level: useWorkoutStore.getState().level,
       recoveryData: useWorkoutStore.getState().recoveryData,
       habits: useWorkoutStore.getState().habits,
+      habitDefs: useWorkoutStore.getState().habitDefs,
     };
     const unsubscribe = useWorkoutStore.subscribe((state) => {
       if (!hydrated.current) return;
@@ -107,7 +118,8 @@ export function useSync(enabled: boolean) {
         state.logs !== prev.logs ||
         state.level !== prev.level ||
         state.recoveryData !== prev.recoveryData ||
-        state.habits !== prev.habits;
+        state.habits !== prev.habits ||
+        state.habitDefs !== prev.habitDefs;
       if (!changed) return;
       prev = {
         completions: state.completions,
@@ -115,6 +127,7 @@ export function useSync(enabled: boolean) {
         level: state.level,
         recoveryData: state.recoveryData,
         habits: state.habits,
+        habitDefs: state.habitDefs,
       };
       debouncedPush();
     });

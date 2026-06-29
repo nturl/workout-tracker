@@ -1,4 +1,5 @@
 import type { Level } from "@/lib/workoutData";
+import type { HabitDef } from "@/lib/habits";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -89,6 +90,21 @@ export interface SyncPayload {
   level?: Level;
   recovery?: RecoveryData;
   habits?: Record<string, DailyHabitRecord>;
+  // Per-user habit definitions (id + label, in display order).
+  habitDefs?: HabitDef[];
+  // Server-assigned version of habitDefs (monotonic integer), the merge key.
+  // On a push it carries the client's base version (CAS token); on a fetch it
+  // carries the canonical version. Replaces the old client-clock timestamp so a
+  // skewed clock can no longer win merges or strand another device's edits.
+  habitDefsVersion?: number;
+}
+
+/** Shape returned by POST /api/sync so the client can adopt the canonical
+ *  server-resolved habit list + version after a push. */
+export interface SyncPushResponse {
+  success: boolean;
+  habitDefs?: HabitDef[];
+  habitDefsVersion?: number;
 }
 
 export interface SyncData extends SyncPayload {

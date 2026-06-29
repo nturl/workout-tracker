@@ -17,7 +17,12 @@ export type IconName =
   | "stop"
   | "check"
   | "chevron"
-  | "close";
+  | "close"
+  | "plus"
+  | "trash"
+  | "pencil"
+  | "arrow-up"
+  | "arrow-down";
 
 const FILLED: Partial<Record<IconName, true>> = {
   play: true,
@@ -88,6 +93,23 @@ const PATHS: Record<IconName, ReactNode> = {
   check: <path d="M4.5 12.5l5 5L19.5 6.5" />,
   chevron: <path d="M6 9l6 6 6-6" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7" />
+      <path d="M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7" />
+      <path d="M10 11v6M14 11v6" />
+    </>
+  ),
+  pencil: (
+    <>
+      <path d="M4 20h4L19 9a2 2 0 0 0-2.83-2.83L5 17v3Z" />
+      <path d="M14.5 7.5l2 2" />
+    </>
+  ),
+  "arrow-up": <path d="M12 19V5M6 11l6-6 6 6" />,
+  "arrow-down": <path d="M12 5v14M6 13l6 6 6-6" />,
 };
 
 interface IconProps extends SVGProps<SVGSVGElement> {

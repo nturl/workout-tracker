@@ -58,12 +58,22 @@ const recoveryEntrySchema = z.object({
   }).optional(),
 }).passthrough();
 
+export const habitDefSchema = z.object({
+  id: z.string().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/, "Invalid habit id"),
+  label: z.string().min(1).max(100),
+});
+
 export const syncBodySchema = z.object({
   completions: z.record(z.string(), z.boolean()).optional(),
   logs: z.record(z.string(), logEntrySchema).optional(),
   level: z.enum(["beginner", "intermediate", "advanced"]).optional(),
   recovery: z.record(z.string(), recoveryEntrySchema).optional(),
   habits: z.record(z.string(), z.record(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.boolean())).optional(),
+  habitDefs: z.array(habitDefSchema).max(30).optional(),
+  // The server-assigned version the client's habitDefs is based on (its CAS
+  // token), not a wall clock. The server mints the real version; the client only
+  // echoes back the last one it adopted. See src/app/api/sync/route.ts.
+  habitDefsVersion: z.number().int().nonnegative().optional(),
 });
 
 export const recoveryActionSchema = z.discriminatedUnion("action", [

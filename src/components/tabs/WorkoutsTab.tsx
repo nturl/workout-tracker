@@ -5,7 +5,6 @@ import { useUser } from "@clerk/nextjs";
 import { weeklyPlan, type WorkoutSession } from "@/lib/workoutData";
 import { weekKey, weekKeyForOffset, sessionKey, getTodayDayName, getWeekProgress, calculateStreak, getBestStreak, calculateDailyHabitStreak, getBestDailyHabitStreak, getLastNDays, todayKey, isSessionScheduled } from "@/lib/helpers";
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
-import { HABITS } from "@/lib/habits";
 import { SyncIndicator } from "@/components/ui/SyncIndicator";
 import { motion, AnimatePresence } from "framer-motion";
 import { staggerContainer } from "@/lib/motion";
@@ -39,6 +38,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
   const saveLog = useWorkoutStore((s) => s.saveLog);
   const setSelectedDay = useWorkoutStore((s) => s.setSelectedDay);
   const habitData = useWorkoutStore((s) => s.habits);
+  const habitDefs = useWorkoutStore((s) => s.habitDefs);
   const toggleHabit = useWorkoutStore((s) => s.toggleHabit);
 
   const [logModal, setLogModal] = useState<{ session: WorkoutSession; key: string } | null>(null);
@@ -54,7 +54,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
   const habits = useMemo(() => {
     if (!mounted) return [];
     const last7 = getLastNDays(7);
-    return HABITS.map(({ id, label }) => {
+    return habitDefs.map(({ id, label }) => {
       const map = habitData[id] || {};
       return {
         key: id,
@@ -66,7 +66,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
         toggle: (date: string) => toggleHabit(id, date),
       };
     });
-  }, [mounted, today, habitData, toggleHabit]);
+  }, [mounted, today, habitData, toggleHabit, habitDefs]);
   const { total: weekTotal, done: weekDone } = useMemo(() => getWeekProgress(completions, wk), [completions, wk]);
   const ouraStatus = useOuraStatus();
 

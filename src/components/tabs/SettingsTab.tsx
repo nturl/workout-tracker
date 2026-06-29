@@ -3,6 +3,7 @@
 import { type Level } from "@/lib/workoutData";
 import { PushSetup } from "@/components/settings/PushSetup";
 import { ConnectedAccounts } from "@/components/settings/ConnectedAccounts";
+import { HabitManager } from "@/components/settings/HabitManager";
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
 import { useTheme } from "@/hooks/useTheme";
 import { useSync } from "@/hooks/useSync";
@@ -91,6 +92,11 @@ export function SettingsTab() {
         {/* Notifications */}
         <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}>
           <PushSetup />
+        </div>
+
+        {/* Daily Habits */}
+        <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}>
+          <HabitManager syncNow={syncNow} />
         </div>
 
         {/* Timer */}

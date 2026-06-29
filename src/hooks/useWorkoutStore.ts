@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Level } from "@/lib/workoutData";
-import { LEGACY_HABIT_IDS } from "@/lib/habits";
+import { LEGACY_HABIT_IDS, DEFAULT_HABITS, makeHabitId, habitDefsEqual, type HabitDef } from "@/lib/habits";
 import type {
   CompletionRecord,
   WorkoutLogRecord,
@@ -48,10 +48,77 @@ export function mergeCompletionsPreferTrue(
   return merged;
 }
 
+/** A fresh, independently-mutable copy of the default habit list. */
+export const seedDefaultHabits = (): HabitDef[] => DEFAULT_HABITS.map((h) => ({ id: h.id, label: h.label }));
+
+export interface HabitDefsState {
+  habitDefs: HabitDef[];
+  // Server-assigned version this list is based on (0 until the server mints one).
+  habitDefsVersion: number;
+  // True when there's a local edit not yet acknowledged by the server.
+  habitDefsDirty: boolean;
+}
+
 /**
- * Persist migration v0 -> v1: fold the old per-habit top-level fields
- * (notWatch, noGamble, ...) into a single `habits` map so existing local
- * streaks survive the data-driven refactor. Exported for direct unit coverage.
+ * Decide the winning habit-def list when server data arrives on hydrate. The
+ * merge key is the SERVER-ASSIGNED `habitDefsVersion`, never a client clock, so a
+ * device with a skewed clock can neither win merges nor strand another device's
+ * edit (the old `habitDefsUpdatedAt` bug). The server is the only minter of
+ * versions; clients only ever adopt them.
+ *
+ * Rules: adopt the server list when local is empty, or the server version is
+ * strictly newer. On an exact-version tie with differing content, fall back to a
+ * deterministic content comparison (defense, kept from the original design) so
+ * two devices converge instead of diverging silently. That tiebreaker is skipped
+ * while a local edit is pending (`habitDefsDirty`) so an equal-version server
+ * echo can't clobber a change that's about to be pushed.
+ *
+ * Exported for direct unit coverage.
+ */
+export function mergeHabitDefs(
+  local: HabitDefsState,
+  incoming: { habitDefs?: HabitDef[]; habitDefsVersion?: number },
+): HabitDefsState {
+  let habitDefs = local.habitDefs;
+  let habitDefsVersion = local.habitDefsVersion;
+  let habitDefsDirty = local.habitDefsDirty;
+
+  if (incoming.habitDefs && incoming.habitDefs.length > 0) {
+    const serverV = incoming.habitDefsVersion ?? 0;
+    const localV = local.habitDefsVersion ?? 0;
+    const localEmpty = !local.habitDefs || local.habitDefs.length === 0;
+    const serverWins =
+      localEmpty ||
+      serverV > localV ||
+      (!local.habitDefsDirty &&
+        serverV === localV &&
+        JSON.stringify(incoming.habitDefs) > JSON.stringify(local.habitDefs));
+    if (serverWins) {
+      habitDefs = incoming.habitDefs;
+      habitDefsVersion = serverV;
+      habitDefsDirty = false; // we just adopted the server's list
+    }
+  }
+
+  // Safety net: never leave the user staring at an empty habit list.
+  if (!habitDefs || habitDefs.length === 0) {
+    habitDefs = seedDefaultHabits();
+    habitDefsVersion = 0;
+    habitDefsDirty = false;
+  }
+
+  return { habitDefs, habitDefsVersion, habitDefsDirty };
+}
+
+/**
+ * Persist migrations:
+ *  - v0 -> v1: fold the old per-habit top-level fields (notWatch, noGamble, ...)
+ *    into a single `habits` map so existing local streaks survive the
+ *    data-driven refactor.
+ *  - v1 -> v2: seed `habitDefs` from DEFAULT_HABITS for existing users who
+ *    predate per-user habit lists. Their `habits` completion map keeps working
+ *    since the seeded ids match the old hardcoded ids.
+ * Exported for direct unit coverage.
  */
 export function migrateHabitsState(persisted: unknown, version: number): unknown {
   const s = (persisted ?? {}) as Record<string, unknown>;
@@ -63,6 +130,20 @@ export function migrateHabitsState(persisted: unknown, version: number): unknown
       delete s[id];
     }
     s.habits = habits;
+  }
+  if (version < 2) {
+    if (!Array.isArray(s.habitDefs) || (s.habitDefs as unknown[]).length === 0) {
+      s.habitDefs = seedDefaultHabits();
+    }
+  }
+  if (version < 3) {
+    // The client wall-clock `habitDefsUpdatedAt` is replaced by a
+    // server-assigned `habitDefsVersion`. Drop the (possibly skewed) timestamp
+    // and reset everyone to version 0 / not-dirty; the server mints real
+    // versions from the next content change onward.
+    delete s.habitDefsUpdatedAt;
+    if (typeof s.habitDefsVersion !== "number") s.habitDefsVersion = 0;
+    if (typeof s.habitDefsDirty !== "boolean") s.habitDefsDirty = false;
   }
   return s;
 }
@@ -81,6 +162,15 @@ interface WorkoutState {
   eightSleepLastSynced: string | null;
   // All daily-habit completion data, keyed by habit id -> { date -> done }.
   habits: Record<string, DailyHabitRecord>;
+  // Per-user habit definitions (id + label), in display order. The UI renders
+  // this list; the `habits` map above keys completion data by these ids.
+  habitDefs: HabitDef[];
+  // Server-assigned version this habitDefs list is based on (0 until the server
+  // mints one). The merge key, replacing the old client-clock timestamp so a
+  // skewed clock can't win merges. See mergeHabitDefs.
+  habitDefsVersion: number;
+  // True when there's a local habitDefs edit not yet acknowledged by the server.
+  habitDefsDirty: boolean;
 
   // UI state
   mounted: boolean;
@@ -98,6 +188,17 @@ interface WorkoutState {
   setMounted: (mounted: boolean) => void;
   toggleHabit: (habitId: string, date: string) => void;
 
+  // Habit-list management (Settings)
+  addHabit: (label: string) => void;
+  renameHabit: (id: string, label: string) => void;
+  removeHabit: (id: string) => void;
+  moveHabit: (id: string, direction: "up" | "down") => void;
+  // Reconcile local habitDefs with the server's canonical answer after a push.
+  applyHabitDefsAck: (
+    acked: { habitDefs?: HabitDef[]; habitDefsVersion?: number },
+    sent: HabitDef[],
+  ) => void;
+
   // Bulk operations for sync
   hydrateFromSync: (data: {
     completions?: CompletionRecord;
@@ -105,6 +206,8 @@ interface WorkoutState {
     level?: Level;
     recovery?: RecoveryData;
     habits?: Record<string, DailyHabitRecord>;
+    habitDefs?: HabitDef[];
+    habitDefsVersion?: number;
     // Legacy top-level habit fields, read once to migrate old synced data.
     notWatch?: DailyHabitRecord;
     noGamble?: DailyHabitRecord;
@@ -120,6 +223,8 @@ interface WorkoutState {
     level: Level;
     recovery: RecoveryData;
     habits: Record<string, DailyHabitRecord>;
+    habitDefs: HabitDef[];
+    habitDefsVersion: number;
   };
 }
 
@@ -148,6 +253,9 @@ export const useWorkoutStore = create<WorkoutState>()(
       ouraLastSynced: null,
       eightSleepLastSynced: null,
       habits: {},
+      habitDefs: seedDefaultHabits(),
+      habitDefsVersion: 0,
+      habitDefsDirty: false,
       mounted: false,
 
       // Actions
@@ -191,6 +299,74 @@ export const useWorkoutStore = create<WorkoutState>()(
             [habitId]: { ...(state.habits[habitId] || {}), [date]: !state.habits[habitId]?.[date] },
           },
         })),
+
+      addHabit: (label) =>
+        set((state) => {
+          const trimmed = label.trim();
+          if (!trimmed) return {};
+          // Dedupe against current def ids AND orphaned completion-map keys so a
+          // re-added habit gets a fresh id instead of silently inheriting a
+          // deleted habit's old streak.
+          const taken = [...state.habitDefs.map((h) => h.id), ...Object.keys(state.habits)];
+          const id = makeHabitId(trimmed, taken);
+          // Mark dirty (not a version bump): the version is server-assigned and
+          // gets minted when this edit is pushed and acked.
+          return {
+            habitDefs: [...state.habitDefs, { id, label: trimmed }],
+            habitDefsDirty: true,
+          };
+        }),
+
+      renameHabit: (id, label) =>
+        set((state) => {
+          const trimmed = label.trim();
+          if (!trimmed) return {};
+          return {
+            habitDefs: state.habitDefs.map((h) => (h.id === id ? { ...h, label: trimmed } : h)),
+            habitDefsDirty: true,
+          };
+        }),
+
+      removeHabit: (id) =>
+        set((state) => {
+          // Keep at least one habit: an empty list is not a supported state
+          // (it would sync as [] and then resurrect to defaults). The UI also
+          // disables the last delete, so this is belt-and-suspenders.
+          const exists = state.habitDefs.some((h) => h.id === id);
+          if (!exists || state.habitDefs.length <= 1) return {};
+          return {
+            habitDefs: state.habitDefs.filter((h) => h.id !== id),
+            habitDefsDirty: true,
+          };
+        }),
+
+      moveHabit: (id, direction) =>
+        set((state) => {
+          const idx = state.habitDefs.findIndex((h) => h.id === id);
+          if (idx === -1) return {};
+          const target = direction === "up" ? idx - 1 : idx + 1;
+          if (target < 0 || target >= state.habitDefs.length) return {};
+          const next = [...state.habitDefs];
+          [next[idx], next[target]] = [next[target], next[idx]];
+          return { habitDefs: next, habitDefsDirty: true };
+        }),
+
+      applyHabitDefsAck: (acked, sent) =>
+        set((state) => {
+          // The server returns its canonical list + version after a push. Only
+          // adopt it if the user hasn't edited again since `sent` was captured
+          // (current list still equals `sent`), so a mid-flight edit isn't
+          // reverted - that edit triggers its own follow-up push which settles
+          // it. This handles both accept (server echoes `sent` with a new
+          // version) and reject/conflict (server returns the winning list).
+          if (acked.habitDefs === undefined || acked.habitDefsVersion === undefined) return {};
+          if (!habitDefsEqual(state.habitDefs, sent)) return {};
+          return {
+            habitDefs: acked.habitDefs,
+            habitDefsVersion: acked.habitDefsVersion,
+            habitDefsDirty: false,
+          };
+        }),
 
       hydrateFromSync: (data) =>
         set((state) => {
@@ -248,20 +424,36 @@ export const useWorkoutStore = create<WorkoutState>()(
           foldLegacy("ash", data.ash);
           foldLegacy("meditation", data.meditation);
 
+          // habitDefs merges on a SERVER-ASSIGNED version (defeats clock skew).
+          // See mergeHabitDefs for the full rationale.
+          const mergedDefs = mergeHabitDefs(
+            {
+              habitDefs: state.habitDefs,
+              habitDefsVersion: state.habitDefsVersion,
+              habitDefsDirty: state.habitDefsDirty,
+            },
+            { habitDefs: data.habitDefs, habitDefsVersion: data.habitDefsVersion },
+          );
+
           return {
             completions: mergedCompletions,
             logs: { ...state.logs, ...(data.logs || {}) },
             level: data.level || state.level,
             recoveryData: mergedRecovery,
             habits: mergedHabits,
+            habitDefs: mergedDefs.habitDefs,
+            habitDefsVersion: mergedDefs.habitDefsVersion,
+            habitDefsDirty: mergedDefs.habitDefsDirty,
             ouraLastSynced: data.ouraLastSynced || state.ouraLastSynced,
             eightSleepLastSynced: data.eightSleepLastSynced || state.eightSleepLastSynced,
           };
         }),
 
       getSyncPayload: () => {
-        const { completions, logs, level, recoveryData, habits } = get();
-        return { completions, logs, level, recovery: recoveryData, habits };
+        const { completions, logs, level, recoveryData, habits, habitDefs, habitDefsVersion } = get();
+        // habitDefsVersion is sent as the CAS base (the version this list is
+        // based on); the server mints the next version from it.
+        return { completions, logs, level, recovery: recoveryData, habits, habitDefs, habitDefsVersion };
       },
     }),
     {
@@ -275,8 +467,12 @@ export const useWorkoutStore = create<WorkoutState>()(
         notifSettings: state.notifSettings,
         timerSettings: state.timerSettings,
         habits: state.habits,
+        habitDefs: state.habitDefs,
+        habitDefsVersion: state.habitDefsVersion,
+        // Persisted so an edit made offline survives a reload and still pushes.
+        habitDefsDirty: state.habitDefsDirty,
       }),
-      version: 1,
+      version: 3,
       migrate: (persisted, version) => migrateHabitsState(persisted, version) as unknown as WorkoutState,
     }
   )
