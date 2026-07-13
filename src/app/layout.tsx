@@ -17,7 +17,7 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: "Workout Tracker",
-  description: "Weekly workout schedule and tracker based on the Boundless fitness blueprint",
+  description: "Weekly workout schedule and tracker",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

@@ -93,7 +93,7 @@ export function LandingPage() {
           transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }}
         >
           <p className="font-display font-semibold text-sm tracking-[0.2em] uppercase mb-6" style={{ color: "#1ed760" }}>
-            Boundless
+            Workout Tracker
           </p>
           <h1
             className="font-display text-5xl sm:text-6xl font-bold mb-6 leading-[1.05]"
@@ -185,10 +185,6 @@ export function LandingPage() {
           </SignUpButton>
         </div>
       </div>
-
-      <footer className="text-center pb-8">
-        <p className="text-xs text-neutral-600">Built on the Boundless fitness blueprint by Ben Greenfield</p>
-      </footer>
     </div>
   );
 }

@@ -108,7 +108,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
         <div className="max-w-lg mx-auto px-5 pt-6 pb-5">
           <div className="flex items-end justify-between mb-5">
             <div>
-              <h1 className="text-[26px] font-display font-bold gradient-text leading-none">Boundless</h1>
+              <h1 className="text-[26px] font-display font-bold gradient-text leading-none">Workouts</h1>
               <div className="flex items-center gap-2 mt-1.5">
                 <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
                   {user?.firstName ? `Hey, ${user.firstName}` : "Your workouts"}

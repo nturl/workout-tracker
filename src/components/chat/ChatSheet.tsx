@@ -42,7 +42,7 @@ interface ChatSheetProps {
 
 const GREETING: Message = {
   role: "assistant",
-  text: "Hey! I'm Coach - your AI workout buddy. Ask me anything about your training, recovery, or the Boundless program.",
+  text: "Hey! I'm Coach - your AI workout buddy. Ask me anything about your training, recovery, or your program.",
 };
 const STORAGE_KEY = "coach-chat-history-v1";
 const HISTORY_LIMIT = 20; // cap messages sent to server

@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "No notification topic configured" }, { status: 400 });
       }
 
-      const result = await sendNotification(topic, "Boundless is connected! You'll get daily workout reminders here.", {
+      const result = await sendNotification(topic, "Workout Tracker is connected! You'll get daily workout reminders here.", {
         title: "Workout Tracker Connected!",
         priority: 3,
         tags: ["white_check_mark", "athletic_shoe"],
