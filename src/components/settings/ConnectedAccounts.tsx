@@ -29,14 +29,19 @@ function AccountCard({
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
+    <div className="rounded-card p-4 bg-surface-elevated">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-lg">{icon}</span>
-          <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{name}</span>
+          <span className="text-sm font-semibold text-content-primary">{name}</span>
         </div>
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${connected ? "bg-green-500/20 text-green-500" : ""}`}
-          style={!connected ? { background: "var(--bg-card)", color: "var(--text-muted)" } : undefined}>
+        <span
+          className="text-[12px] leading-[16px] font-semibold px-2 py-0.5 rounded-full"
+          style={
+            connected
+              ? { background: "var(--accent-glow)", color: "var(--accent)" }
+              : { background: "var(--bg-card)", color: "var(--text-muted)" }
+          }>
           {loading ? "..." : connected ? "Connected" : "Not connected"}
         </span>
       </div>
@@ -45,28 +50,28 @@ function AccountCard({
           <>
             {onSync && (
               <button onClick={onSync} disabled={syncing}
-                className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
-                style={{ background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
+                className="flex-1 h-11 rounded-button text-[13px] leading-[16px] font-medium pressable bg-surface-card text-content-primary border"
+                style={{ borderColor: "var(--card-border)" }}>
                 {syncing ? "Syncing..." : "Sync Today"}
               </button>
             )}
             {confirming ? (
               <button onClick={() => { onDisconnect(); setConfirming(false); }}
-                className="flex-1 py-2 rounded-lg text-xs font-semibold bg-red-500/20 text-red-500 transition-all">
+                className="flex-1 h-11 rounded-button text-[13px] leading-[16px] font-medium pressable bg-surface-card text-danger border"
+                style={{ borderColor: "var(--danger)" }}>
                 Confirm
               </button>
             ) : (
               <button onClick={() => setConfirming(true)}
-                className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
-                style={{ background: "var(--bg-card)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+                className="flex-1 h-11 rounded-button text-[13px] leading-[16px] font-medium pressable bg-surface-card text-content-muted border"
+                style={{ borderColor: "var(--card-border)" }}>
                 Disconnect
               </button>
             )}
           </>
         ) : (
           <button onClick={onConnect} disabled={loading}
-            className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
-            style={{ background: "var(--text-primary)", color: "var(--bg-primary)" }}>
+            className="flex-1 h-11 rounded-button text-[13px] leading-[16px] font-medium pressable bg-accent text-accent-contrast disabled:opacity-50">
             Connect
           </button>
         )}
@@ -86,7 +91,7 @@ export function ConnectedAccounts() {
 
   return (
     <div>
-      <p className="text-xs font-semibold tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+      <p className="text-[12px] leading-[16px] font-semibold tracking-[0.08em] uppercase text-content-secondary mb-3">
         Connected Accounts
       </p>
       <div className="space-y-3">

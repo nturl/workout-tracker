@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import type { CSSProperties } from "react";
 
 const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
@@ -19,33 +19,28 @@ const PARTICLES = Array.from({ length: 20 }, (_, i) => {
   };
 });
 
+// Pure-CSS burst: particles are driven by the shared `confetti-burst`
+// keyframes (globals.css) via per-particle --tx/--ty custom properties.
 export function ConfettiBurst({ active }: { active: boolean }) {
+  if (!active) return null;
   return (
-    <AnimatePresence>
-      {active && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
-          {PARTICLES.map((p, i) => (
-            <motion.div
-              key={i}
-              className="absolute left-1/2 top-1/2 rounded-full"
-              style={{
-                width: p.size,
-                height: p.size,
-                backgroundColor: p.color,
-              }}
-              initial={{ x: "-50%", y: "-50%", scale: 1, opacity: 1 }}
-              animate={{
-                x: `calc(-50% + ${p.tx}px)`,
-                y: `calc(-50% + ${p.ty}px)`,
-                scale: 0,
-                opacity: 0,
-              }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.6, ease: "easeOut", delay: p.delay }}
-            />
-          ))}
-        </div>
-      )}
-    </AnimatePresence>
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
+      {PARTICLES.map((p, i) => (
+        <div
+          key={i}
+          className="absolute left-1/2 top-1/2 rounded-full"
+          style={
+            {
+              width: p.size,
+              height: p.size,
+              backgroundColor: p.color,
+              "--tx": `${p.tx}px`,
+              "--ty": `${p.ty}px`,
+              animation: `confetti-burst 0.6s ease-out ${p.delay}s both`,
+            } as CSSProperties
+          }
+        />
+      ))}
+    </div>
   );
 }

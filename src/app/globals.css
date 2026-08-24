@@ -3,24 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #f8fafc;
+  --bg-primary: #f7f8fa;
   --bg-card: #ffffff;
-  --bg-elevated: #f1f5f9;
+  --bg-elevated: #eef0f4;
   --bg-input: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
+  --text-primary: #0b1220;
+  --text-secondary: #5b6472;
+  --text-muted: #98a1ae;
   --border: transparent;
   --border-active: #e2e8f0;
   --card-border: rgba(15, 23, 42, 0.06);
   --ring-offset: #f8fafc;
   --heatmap-empty: #e2e8f0;
-  --heatmap-fill: 34, 197, 94;
+  --heatmap-fill: 5, 150, 105;
   --timer-bg: #0f172a;
   --modal-overlay: rgba(0, 0, 0, 0.7);
-  --accent: #3b82f6;
-  --accent-light: #60a5fa;
-  --accent-glow: rgba(59, 130, 246, 0.15);
+  --accent: #059669;
+  --accent-light: #10b981;
+  --accent-contrast: #ffffff;
+  --accent-glow: rgba(5, 150, 105, 0.15);
+  --danger: #dc2626;
+  --warning: #d97706;
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.05), 0 10px 30px rgba(0, 0, 0, 0.07);
@@ -31,9 +34,13 @@
   --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-border: rgba(0, 0, 0, 0.06);
   --app-bg:
-    radial-gradient(1000px 720px at 8% -12%, rgba(59, 130, 246, 0.10), transparent 55%),
+    radial-gradient(1000px 720px at 8% -12%, rgba(5, 150, 105, 0.08), transparent 55%),
     radial-gradient(900px 680px at 102% 2%, rgba(139, 92, 246, 0.07), transparent 55%),
     linear-gradient(180deg, #fbfcfe, #f3f5fa);
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .dark {
@@ -53,8 +60,11 @@
   --timer-bg: #161619;
   --modal-overlay: rgba(0, 0, 0, 0.8);
   --accent: #1ed760;
-  --accent-light: #1fdf64;
+  --accent-light: #2ee56f;
+  --accent-contrast: #04210e;
   --accent-glow: rgba(30, 215, 96, 0.18);
+  --danger: #f4635e;
+  --warning: #f5a623;
   --shadow-xs: none;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.35);
@@ -213,4 +223,48 @@ html {
     ) scale(0);
     opacity: 0;
   }
+}
+
+/* Entrance animations (spec §4) — preferred over framer-motion for simple
+   entrance/tap effects; framer stays only in Sheet/ChatSheet/MarkerDetailSheet. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.anim-fade-up {
+  animation: fade-up var(--dur-slow) var(--ease-out-quart) both;
+}
+
+.anim-scale-in {
+  animation: scale-in var(--dur-base) var(--ease-out-quart) both;
+}
+
+.anim-stagger > * {
+  animation-delay: calc(var(--stagger-i, 0) * 45ms);
+}
+
+.pressable {
+  transition: transform var(--dur-fast);
+}
+
+.pressable:active {
+  transform: scale(0.97);
 }

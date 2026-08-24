@@ -117,10 +117,10 @@ export default function Home() {
         {/* Floating chat button */}
         <button
           onClick={() => setChatState({ open: true })}
-          className="fixed z-40 w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+          className="fixed z-40 w-12 h-12 rounded-full flex items-center justify-center pressable"
           style={{
             background: "linear-gradient(135deg, var(--accent), var(--accent-light))",
-            color: "#fff",
+            color: "var(--accent-contrast)",
             bottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))",
             right: "1.25rem",
             boxShadow: "0 4px 16px var(--accent-glow), var(--shadow-md)",
@@ -150,7 +150,7 @@ function TabSkeleton() {
   return (
     <div className="max-w-lg mx-auto px-5 pt-8 space-y-4">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="h-20 rounded-2xl animate-pulse" style={{ background: "var(--bg-elevated)" }} />
+        <div key={i} className="h-20 rounded-card animate-pulse bg-surface-elevated" />
       ))}
     </div>
   );

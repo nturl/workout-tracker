@@ -1,7 +1,6 @@
 "use client";
 
 import { memo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { weeklyPlan } from "@/lib/workoutData";
 import { DAYS, weekKey, sessionKey } from "@/lib/helpers";
 import { ConsistencyHeatmap } from "@/components/progress/Heatmap";
@@ -12,10 +11,10 @@ const WEEKS = 8;
 
 function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-xl px-2.5 py-2 text-center" style={{ background: "var(--bg-elevated)" }}>
-      <div className="text-base font-black tabular-nums" style={{ color: "var(--text-primary)" }}>{value}</div>
-      <div className="text-[10px] font-semibold" style={{ color: "var(--text-muted)" }}>{label}</div>
-      <div className="text-[9px]" style={{ color: "var(--text-muted)", opacity: 0.7 }}>{sub}</div>
+    <div className="rounded-button px-2.5 py-2 text-center bg-surface-elevated">
+      <div className="font-display text-base font-bold tabular-nums text-content-primary">{value}</div>
+      <div className="text-[10px] font-semibold text-content-muted">{label}</div>
+      <div className="text-[9px] text-content-muted opacity-70">{sub}</div>
     </div>
   );
 }
@@ -97,11 +96,11 @@ export const MomentumChart = memo(function MomentumChart({ completions }: { comp
 
   return (
     <div style={{ color: "var(--accent)" }}>
-      <button type="button" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded} className="w-full text-left" aria-label={expanded ? "Collapse momentum detail" : "Expand momentum detail"}>
+      <button type="button" onClick={() => setExpanded((v) => !v)} aria-expanded={expanded} className="pressable w-full text-left" aria-label={expanded ? "Collapse momentum detail" : "Expand momentum detail"}>
         <div className="flex items-baseline gap-2.5 mb-3">
-          <span className="text-3xl font-black tracking-tight tabular-nums" style={{ color: "var(--text-primary)" }}>{current}%</span>
-          <span className="text-xs font-bold" style={{ color: trend.up ? "var(--accent)" : "#f87171" }}>{trend.icon} {trend.text}</span>
-          <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold tabular-nums" style={{ color: "var(--text-muted)" }}>
+          <span className="font-display text-3xl font-bold tracking-tight tabular-nums text-content-primary">{current}%</span>
+          <span className="text-xs font-bold" style={{ color: trend.up ? "var(--accent)" : "var(--danger)" }}>{trend.icon} {trend.text}</span>
+          <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold tabular-nums text-content-muted">
             8-wk avg {avg}%
             <span className="inline-flex transition-transform" style={{ transform: expanded ? "rotate(180deg)" : undefined }}>
               <Icon name="chevron" size={13} strokeWidth={2.4} />
@@ -133,36 +132,27 @@ export const MomentumChart = memo(function MomentumChart({ completions }: { comp
 
         <div className="flex justify-between mt-2">
           {[0, 2, 4, 6].map((i) => (
-            <span key={i} className="text-[9px] font-medium" style={{ color: "var(--text-muted)" }}>{fmt(weekStarts[i])}</span>
+            <span key={i} className="text-[9px] font-medium text-content-muted">{fmt(weekStarts[i])}</span>
           ))}
           <span className="text-[9px] font-bold" style={{ color: "var(--accent)" }}>now</span>
         </div>
       </button>
 
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            key="detail"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            style={{ overflow: "hidden" }}
-          >
-            <div className="mt-4 pt-4 grid grid-cols-3 gap-2" style={{ borderTop: "1px solid var(--card-border)" }}>
-              <Stat label="Best week" value={`${pcts[bestIdx]}%`} sub={fmt(weekStarts[bestIdx])} />
-              <Stat label="Toughest" value={`${pcts[worstIdx]}%`} sub={fmt(weekStarts[worstIdx])} />
-              <Stat label="This week" value={`${doneArr[WEEKS - 1]}/${totalArr[WEEKS - 1]}`} sub="sessions" />
-            </div>
+      {expanded && (
+        <div className="anim-fade-up">
+          <div className="mt-4 pt-4 grid grid-cols-3 gap-2" style={{ borderTop: "1px solid var(--card-border)" }}>
+            <Stat label="Best week" value={`${pcts[bestIdx]}%`} sub={fmt(weekStarts[bestIdx])} />
+            <Stat label="Toughest" value={`${pcts[worstIdx]}%`} sub={fmt(weekStarts[worstIdx])} />
+            <Stat label="This week" value={`${doneArr[WEEKS - 1]}/${totalArr[WEEKS - 1]}`} sub="sessions" />
+          </div>
 
-            <p className="text-[11px] mt-3 mb-2" style={{ color: "var(--text-muted)" }}>
-              <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{weeksAboveAvg} of {WEEKS}</span> weeks at or above your average. Pattern by day:
-            </p>
+          <p className="text-[11px] mt-3 mb-2 text-content-muted">
+            <span className="text-content-primary font-bold">{weeksAboveAvg} of {WEEKS}</span> weeks at or above your average. Pattern by day:
+          </p>
 
-            <ConsistencyHeatmap completions={completions} compact />
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <ConsistencyHeatmap completions={completions} compact />
+        </div>
+      )}
     </div>
   );
 });

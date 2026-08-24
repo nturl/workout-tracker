@@ -48,14 +48,14 @@ export function StreakCounter({ streak, weekDone, weekTotal, bestStreak }: Strea
   return (
     <div className="grid grid-cols-3 gap-3" role="group" aria-label="Workout statistics">
       {stats.map((s, i) => (
-        <div key={i} className="glass-card rounded-2xl p-3 flex flex-col items-center gap-1.5">
+        <div key={i} className="glass-card rounded-card p-4 flex flex-col items-center gap-1.5">
           <div className="relative">
             <Ring value={s.value} max={s.max} from={s.from} to={s.to} />
-            <span className="absolute inset-0 flex items-center justify-center text-xl font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
+            <span className="absolute inset-0 flex items-center justify-center font-display text-xl font-bold tabular-nums text-content-primary">
               {s.value}
             </span>
           </div>
-          <p className="text-xs font-semibold tracking-wide" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs leading-4 font-medium text-content-muted">
             {s.label}
             {s.sub && <span className="opacity-60">{s.sub}</span>}
           </p>

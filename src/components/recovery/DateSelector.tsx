@@ -20,16 +20,17 @@ export function DateSelector({ dates, selectedDate, onSelect }: {
 }) {
   return (
     <div className="px-5 pt-4 pb-2 flex gap-2 overflow-x-auto no-scrollbar">
-      {dates.map((d) => (
-        <button key={d.key} onClick={() => onSelect(d.key)}
-          className="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all inline-touch"
-          style={{
-            background: selectedDate === d.key ? "var(--text-primary)" : "var(--bg-elevated)",
-            color: selectedDate === d.key ? "var(--bg-primary)" : "var(--text-secondary)",
-          }}>
-          {d.label}
-        </button>
-      ))}
+      {dates.map((d) => {
+        const selected = selectedDate === d.key;
+        return (
+          <button key={d.key} onClick={() => onSelect(d.key)}
+            className={`pressable shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors inline-touch ${
+              selected ? "bg-accent text-accent-contrast" : "bg-surface-elevated text-content-secondary"
+            }`}>
+            {d.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

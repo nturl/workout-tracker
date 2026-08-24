@@ -28,7 +28,7 @@ export function HabitCard({
 }: HabitCardProps) {
   return (
     <div
-      className="glass-card rounded-xl px-3 py-2"
+      className="glass-card rounded-card px-3 py-2.5"
       role="group"
       aria-label={`${label} tracker`}
     >
@@ -38,10 +38,10 @@ export function HabitCard({
           onClick={onToggleToday}
           aria-pressed={doneToday}
           aria-label={doneToday ? `Mark ${label} today as not done` : `Mark ${label} today as done`}
-          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+          className="pressable shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
           style={{
             background: doneToday ? "var(--accent)" : "var(--bg-elevated)",
-            color: doneToday ? "#fff" : "var(--text-muted)",
+            color: doneToday ? "var(--accent-contrast)" : "var(--text-muted)",
             boxShadow: doneToday ? "0 0 8px var(--accent-glow)" : "none",
           }}
         >
@@ -55,15 +55,15 @@ export function HabitCard({
           aria-label={`${expanded ? "Hide" : "Show"} ${label} history`}
           className="flex-1 min-w-0 flex items-center gap-2 text-left"
         >
-          <span className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>
+          <span className="flex-1 min-w-0 text-[17px] font-semibold tracking-[-0.01em] truncate" style={{ color: "var(--text-primary)" }}>
             {label}
           </span>
           <span className="flex items-center gap-1 shrink-0 tabular-nums">
             <span className="inline-flex" style={{ color: streak > 0 ? "#f97316" : "var(--text-muted)" }}>
               <Icon name="flame" size={13} strokeWidth={2.2} />
             </span>
-            <span className="text-base font-black" style={{ color: streak > 0 ? "#f97316" : "var(--text-muted)" }}>{streak}</span>
-            <span className="text-[10px] font-semibold ml-0.5" style={{ color: "var(--text-muted)" }}>best {bestStreak}</span>
+            <span className="font-display text-base font-bold" style={{ color: streak > 0 ? "#f97316" : "var(--text-muted)" }}>{streak}</span>
+            <span className="text-[10px] font-medium ml-0.5" style={{ color: "var(--text-muted)" }}>best {bestStreak}</span>
           </span>
           <span
             className="shrink-0 inline-flex transition-transform"
@@ -78,7 +78,7 @@ export function HabitCard({
       </div>
 
       {expanded && (
-        <div className="mt-2 pt-2 border-t flex items-center justify-between gap-1" style={{ borderColor: "var(--bg-elevated)" }}>
+        <div className="anim-fade-up mt-2 pt-2 border-t flex items-center justify-between gap-1" style={{ borderColor: "var(--bg-elevated)" }}>
           {recentDays.map((d) => (
             <button
               key={d.key}
@@ -86,20 +86,20 @@ export function HabitCard({
               onClick={() => onToggleDate(d.key)}
               aria-pressed={d.logged}
               aria-label={`${d.logged ? "Unlog" : "Log"} ${label} for ${d.key}${d.isToday ? " (today)" : ""}`}
-              className="flex-1 flex flex-col items-center gap-1 py-1 rounded-lg transition-all active:scale-95"
+              className="pressable flex-1 flex flex-col items-center gap-1 py-1 rounded-lg"
             >
               <span
-                className="w-6 h-6 rounded-full flex items-center justify-center transition-all"
+                className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
                 style={{
                   background: d.logged ? "var(--accent)" : "var(--bg-elevated)",
-                  color: d.logged ? "#fff" : "var(--text-muted)",
+                  color: d.logged ? "var(--accent-contrast)" : "var(--text-muted)",
                   outline: d.isToday ? "2px solid var(--accent-light)" : "none",
                   outlineOffset: "1px",
                 }}
               >
                 {d.logged ? <Icon name="check" size={11} strokeWidth={3.5} /> : null}
               </span>
-              <span className="text-[10px] font-bold tracking-wide" style={{ color: d.isToday ? "var(--text-primary)" : "var(--text-muted)" }}>
+              <span className="text-[10px] font-semibold tracking-wide" style={{ color: d.isToday ? "var(--text-primary)" : "var(--text-muted)" }}>
                 {d.dayLabel}
               </span>
             </button>

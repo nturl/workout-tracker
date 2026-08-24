@@ -9,7 +9,7 @@ export function HealthInsights() {
     return (
       <div className="space-y-3">
         {[1, 2].map((i) => (
-          <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: "var(--bg-elevated)" }} />
+          <div key={i} className="h-24 rounded-card animate-pulse bg-surface-elevated" />
         ))}
       </div>
     );
@@ -18,23 +18,18 @@ export function HealthInsights() {
   if (isError || !data) {
     return (
       <div
-        className="rounded-2xl p-5"
-        style={{
-          background: "var(--bg-card)",
-          boxShadow: "var(--shadow-sm)",
-          border: "1px solid #ef444430",
-        }}
+        className="glass-card rounded-card p-5"
+        style={{ border: "1px solid color-mix(in srgb, var(--danger) 25%, transparent)" }}
       >
-        <p className="text-sm font-bold mb-2" style={{ color: "#ef4444" }}>
+        <p className="text-sm font-bold mb-2 text-danger">
           Couldn&apos;t generate insights
         </p>
-        <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
+        <p className="text-xs mb-3 text-content-secondary">
           {error instanceof Error ? error.message : "Unknown error"}
         </p>
         <button
           onClick={() => refetch()}
-          className="text-xs font-bold px-3 py-1.5 rounded-full"
-          style={{ background: "var(--accent)", color: "#fff" }}
+          className="pressable h-11 px-5 rounded-button text-[13px] font-medium bg-accent text-accent-contrast"
         >
           Retry
         </button>
@@ -43,19 +38,19 @@ export function HealthInsights() {
   }
   if (!data.insights) {
     return (
-      <div className="rounded-2xl p-5 text-center" style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}>
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>{data.message ?? "No data available for insights."}</p>
+      <div className="py-10 text-center">
+        <p className="text-sm text-content-muted">{data.message ?? "No data available for insights."}</p>
       </div>
     );
   }
 
   const { insights } = data;
-  const scoreColor = insights.overallScore >= 80 ? "#22c55e" : insights.overallScore >= 60 ? "#3b82f6" : insights.overallScore >= 40 ? "#eab308" : "#ef4444";
+  const scoreColor = insights.overallScore >= 80 ? "var(--accent)" : insights.overallScore >= 60 ? "#3b82f6" : insights.overallScore >= 40 ? "var(--warning)" : "var(--danger)";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Score card */}
-      <div className="rounded-2xl p-5" style={{ background: "var(--bg-card)", boxShadow: "var(--card-shadow)" }}>
+      <div className="glass-card rounded-card p-5">
         <div className="flex items-center gap-4">
           <div className="relative w-16 h-16" role="progressbar" aria-valuenow={insights.overallScore} aria-valuemin={0} aria-valuemax={100} aria-label={`Health score: ${insights.overallScore} out of 100`}>
             <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90" aria-hidden="true">
@@ -69,14 +64,14 @@ export function HealthInsights() {
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-lg font-black tabular-nums" style={{ color: scoreColor }}>
+              <span className="font-display text-lg font-bold tabular-nums" style={{ color: scoreColor }}>
                 {insights.overallScore}
               </span>
             </div>
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold" style={{ color: scoreColor }}>{insights.scoreLabel}</p>
-            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{insights.summary}</p>
+            <p className="text-xs mt-0.5 text-content-secondary">{insights.summary}</p>
           </div>
         </div>
       </div>
@@ -84,7 +79,7 @@ export function HealthInsights() {
       {/* Insights */}
       {insights.insights.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Insights</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-[0.08em] mb-3 text-content-secondary">Insights</h4>
           {insights.insights.map((insight, i) => (
             <InsightCard key={i} insight={insight} />
           ))}
@@ -94,7 +89,7 @@ export function HealthInsights() {
       {/* Recommendations */}
       {insights.recommendations.length > 0 && (
         <div>
-          <h4 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--text-muted)" }}>Do this</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-[0.08em] mb-3 text-content-secondary">Do this</h4>
           <div className="space-y-2">
             {insights.recommendations.map((rec, i) => (
               <RecommendationRow key={i} index={i + 1} text={rec} />
@@ -106,7 +101,7 @@ export function HealthInsights() {
       {/* Trends */}
       {insights.trends.length > 0 && (
         <div>
-          <h4 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--text-muted)" }}>Trends</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-[0.08em] mb-3 text-content-secondary">Trends</h4>
           <div className="space-y-2">
             {insights.trends.map((trend, i) => (
               <TrendRow key={i} trend={trend} />
@@ -125,22 +120,19 @@ function RecommendationRow({ index, text }: { index: number; text: string }) {
   const rest = match ? match[2] : "";
 
   return (
-    <div
-      className="rounded-2xl p-3.5 flex items-start gap-3"
-      style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}
-    >
+    <div className="glass-card rounded-card p-3.5 flex items-start gap-3">
       <span
-        className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black tabular-nums"
+        className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold tabular-nums"
         style={{ background: "var(--accent-glow)", color: "var(--accent)" }}
       >
         {String(index).padStart(2, "0")}
       </span>
       <p className="text-sm leading-snug flex-1 min-w-0">
-        <span className="font-black" style={{ color: "var(--text-primary)" }}>
+        <span className="font-bold text-content-primary">
           {lead}
         </span>
         {rest && (
-          <span style={{ color: "var(--text-secondary)" }}>
+          <span className="text-content-secondary">
             {" - "}
             {rest}
           </span>
@@ -153,38 +145,34 @@ function RecommendationRow({ index, text }: { index: number; text: string }) {
 function TrendRow({ trend }: { trend: { marker: string; direction: string; note: string } }) {
   const isUp = trend.direction === "improving";
   const isDown = trend.direction === "declining";
-  const color = isUp ? "#22c55e" : isDown ? "#ef4444" : "var(--text-muted)";
+  const color = isUp ? "var(--accent)" : isDown ? "var(--danger)" : "var(--text-muted)";
   const icon = isUp ? "↑" : isDown ? "↓" : "→";
   const label = isUp ? "UP" : isDown ? "DOWN" : "FLAT";
 
   return (
     <div
-      className="rounded-2xl p-3.5 flex items-start gap-3"
-      style={{
-        background: "var(--bg-card)",
-        boxShadow: "var(--shadow-sm)",
-        borderLeft: `3px solid ${color}`,
-      }}
+      className="glass-card rounded-card p-3.5 flex items-start gap-3"
+      style={{ borderLeft: `3px solid ${color}` }}
     >
       <div
-        className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-lg font-black"
-        style={{ background: `${color}18`, color }}
+        className="shrink-0 w-9 h-9 rounded-button flex items-center justify-center text-lg font-bold"
+        style={{ background: `color-mix(in srgb, ${color} 12%, transparent)`, color }}
       >
         {icon}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+          <span className="text-sm font-bold text-content-primary">
             {trend.marker}
           </span>
           <span
-            className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-            style={{ background: `${color}18`, color }}
+            className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{ background: `color-mix(in srgb, ${color} 12%, transparent)`, color }}
           >
             {label}
           </span>
         </div>
-        <p className="text-xs leading-snug" style={{ color: "var(--text-secondary)" }}>
+        <p className="text-xs leading-snug text-content-secondary">
           {trend.note}
         </p>
       </div>
@@ -193,31 +181,29 @@ function TrendRow({ trend }: { trend: { marker: string; direction: string; note:
 }
 
 function InsightCard({ insight }: { insight: HealthInsight }) {
-  const borderColor = insight.type === "concern" ? "#ef4444" : insight.type === "positive" ? "#22c55e" : "var(--border-active)";
-  const priorityBadge = insight.priority === "high" ? { bg: "#fef2f2", color: "#ef4444", label: "High" }
-    : insight.priority === "medium" ? { bg: "#fffbeb", color: "#eab308", label: "Medium" }
-    : null;
+  const borderColor = insight.type === "concern" ? "var(--danger)" : insight.type === "positive" ? "var(--accent)" : "var(--border-active)";
+  const priorityBadge = insight.priority === "high"
+    ? { bg: "color-mix(in srgb, var(--danger) 12%, transparent)", color: "var(--danger)", label: "High" }
+    : insight.priority === "medium"
+      ? { bg: "color-mix(in srgb, var(--warning) 14%, transparent)", color: "var(--warning)", label: "Medium" }
+      : null;
 
   return (
     <div
-      className="rounded-xl p-3"
-      style={{
-        background: "var(--bg-card)",
-        boxShadow: "var(--shadow-sm)",
-        borderLeft: `3px solid ${borderColor}`,
-      }}
+      className="glass-card rounded-card p-3"
+      style={{ borderLeft: `3px solid ${borderColor}` }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{insight.title}</span>
+            <span className="text-sm font-bold text-content-primary">{insight.title}</span>
             {priorityBadge && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: priorityBadge.bg, color: priorityBadge.color }}>
                 {priorityBadge.label}
               </span>
             )}
           </div>
-          <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>{insight.body}</p>
+          <p className="text-xs mt-1 text-content-secondary">{insight.body}</p>
         </div>
       </div>
     </div>

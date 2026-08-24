@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { fadeUp, staggerContainer } from "@/lib/motion";
 import { STATUS_CONFIG, type BiomarkerStatus } from "@/types/biomarker";
 import type { BiomarkerSnapshot } from "@/types/biomarker";
 
@@ -53,22 +51,17 @@ export function MarkerTable({ markers, onSelect, initialFilter, limit }: Props) 
   return (
     <div>
       {/* Search */}
-      <div className="sticky top-0 z-10 pb-2" style={{ background: "var(--bg-base)" }}>
+      <div className="sticky top-0 z-10 pb-2 bg-surface-base">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search markers..."
-          className="w-full rounded-xl px-3 py-2 text-sm"
-          style={{
-            background: "var(--bg-card)",
-            color: "var(--text-primary)",
-            border: "1px solid var(--border-active)",
-          }}
+          className="input-field w-full h-11 rounded-button px-3 text-sm bg-surface-input text-content-primary placeholder:text-content-muted border border-active"
         />
 
         {/* Filter pills */}
-        <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 no-scrollbar">
           {FILTERS.map((f) => {
             const active = filter === f.key;
             const statusColor = f.key !== "all" ? STATUS_CONFIG[f.key as BiomarkerStatus].color : undefined;
@@ -76,10 +69,10 @@ export function MarkerTable({ markers, onSelect, initialFilter, limit }: Props) 
               <button
                 key={f.key}
                 onClick={() => setFilter(f.key)}
-                className="shrink-0 px-3 py-1 rounded-full text-[11px] font-bold transition-all"
+                className="pressable shrink-0 px-3 py-1 rounded-full text-[11px] font-bold transition-colors"
                 style={{
                   background: active ? (statusColor ?? "var(--accent)") : "var(--bg-elevated)",
-                  color: active ? "#fff" : "var(--text-muted)",
+                  color: active ? (statusColor ? "#fff" : "var(--accent-contrast)") : "var(--text-muted)",
                 }}
               >
                 {f.label}
@@ -90,31 +83,29 @@ export function MarkerTable({ markers, onSelect, initialFilter, limit }: Props) 
       </div>
 
       {/* Rows */}
-      <motion.div
-        variants={staggerContainer}
-        initial="initial"
-        animate="animate"
-        className="space-y-1.5 mt-1"
-      >
-        <AnimatePresence mode="popLayout">
-          {visible.map((s) => (
-            <MarkerRow key={s.biomarkerId} snapshot={s} onSelect={() => onSelect(s.biomarkerId)} />
-          ))}
-        </AnimatePresence>
-      </motion.div>
+      <div className="anim-stagger space-y-2 mt-1">
+        {visible.map((s, i) => (
+          <div
+            key={s.biomarkerId}
+            className="anim-fade-up"
+            style={{ "--stagger-i": i } as React.CSSProperties}
+          >
+            <MarkerRow snapshot={s} onSelect={() => onSelect(s.biomarkerId)} />
+          </div>
+        ))}
+      </div>
 
       {hasMore && (
         <button
           onClick={() => setShowAll(true)}
-          className="w-full mt-3 py-2 text-xs font-bold rounded-xl transition-all hover:scale-[1.01]"
-          style={{ background: "var(--bg-elevated)", color: "var(--accent)" }}
+          className="pressable w-full mt-3 h-11 text-xs font-bold rounded-button bg-surface-elevated text-accent"
         >
           Show all {filtered.length} markers
         </button>
       )}
 
       {visible.length === 0 && (
-        <p className="text-center text-sm py-6" style={{ color: "var(--text-muted)" }}>
+        <p className="text-center text-sm py-6 text-content-muted">
           No markers found
         </p>
       )}
@@ -129,15 +120,12 @@ export function MarkerTable({ markers, onSelect, initialFilter, limit }: Props) 
 function MarkerRow({ snapshot, onSelect }: { snapshot: BiomarkerSnapshot; onSelect: () => void }) {
   const { meta, latest, trend, history } = snapshot;
   const trendIcon = trend === "improving" ? "+" : trend === "declining" ? "-" : trend === "stable" ? "=" : "";
-  const trendColor = trend === "improving" ? "#22c55e" : trend === "declining" ? "#ef4444" : "var(--text-muted)";
+  const trendColor = trend === "improving" ? "var(--accent)" : trend === "declining" ? "var(--danger)" : "var(--text-muted)";
 
   return (
-    <motion.button
-      variants={fadeUp}
-      layout
+    <button
       onClick={onSelect}
-      className="w-full rounded-xl px-3 py-2.5 flex items-center gap-2.5 transition-all hover:scale-[1.01] active:scale-[0.99]"
-      style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}
+      className="pressable glass-card w-full rounded-card px-3 py-2.5 flex items-center gap-2.5"
     >
       {/* Status dot */}
       <span
@@ -147,7 +135,7 @@ function MarkerRow({ snapshot, onSelect }: { snapshot: BiomarkerSnapshot; onSele
 
       {/* Name */}
       <div className="flex-1 text-left min-w-0">
-        <p className="text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>
+        <p className="text-sm font-bold truncate text-content-primary">
           {meta.shortName ?? meta.name}
         </p>
       </div>
@@ -159,15 +147,15 @@ function MarkerRow({ snapshot, onSelect }: { snapshot: BiomarkerSnapshot; onSele
 
       {/* Value */}
       <div className="text-right flex items-center gap-1.5 shrink-0">
-        <span className="text-sm font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>
+        <span className="text-sm font-bold tabular-nums text-content-primary">
           {latest.value}
         </span>
-        <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{latest.unit}</span>
+        <span className="text-[10px] text-content-muted">{latest.unit}</span>
         {trendIcon && (
           <span className="text-[10px] font-black" style={{ color: trendColor }}>{trendIcon}</span>
         )}
       </div>
-    </motion.button>
+    </button>
   );
 }
 

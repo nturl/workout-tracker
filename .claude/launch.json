@@ -1,11 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    {
-      "name": "workout-tracker",
-      "runtimeExecutable": "/bin/sh",
-      "runtimeArgs": ["-c", "export PATH=\"/Users/noelturlington/Library/Application Support/com.conductor.app/bin:/usr/local/bin:/opt/homebrew/bin:$PATH\" && npm run dev"],
-      "port": 3000
-    }
+    { "name": "workout-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "-p", "3001"], "port": 3001 }
   ]
 }

@@ -1,7 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { fadeUp, spring } from "@/lib/motion";
+import { useEffect, useState } from "react";
 import { STATUS_CONFIG, type BiomarkerStatus } from "@/types/biomarker";
 
 interface Props {
@@ -12,32 +11,25 @@ const ORDER: BiomarkerStatus[] = ["optimal", "normal", "attention", "out_of_rang
 
 export function StatusBreakdownBar({ breakdown }: Props) {
   const total = ORDER.reduce((sum, s) => sum + breakdown[s], 0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   if (total === 0) return null;
 
   const activeStatuses = ORDER.filter((s) => breakdown[s] > 0);
 
   return (
-    <motion.div
-      variants={fadeUp}
-      className="rounded-2xl p-5"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border-subtle, var(--glass-border))",
-        boxShadow: "var(--shadow-sm)",
-      }}
-    >
+    <div className="glass-card rounded-card p-5">
       {/* Header */}
       <div className="flex items-baseline justify-between mb-3">
-        <span
-          className="text-sm font-black tracking-tight"
-          style={{ color: "var(--text-primary)" }}
-        >
+        <span className="font-display text-base font-bold tabular-nums tracking-tight text-content-primary">
           {total} Total
         </span>
-        <span
-          className="text-[11px] font-bold"
-          style={{ color: "var(--text-secondary)" }}
-        >
+        <span className="text-xs font-semibold text-content-secondary">
           {breakdown.optimal + breakdown.normal} in range - {breakdown.attention + breakdown.out_of_range} flagged
         </span>
       </div>
@@ -46,7 +38,7 @@ export function StatusBreakdownBar({ breakdown }: Props) {
       <div className="relative mb-4">
         {/* Glow layer - sits behind the bar */}
         <div
-          className="absolute inset-0 top-1 rounded-xl overflow-hidden flex"
+          className="absolute inset-0 top-1 rounded-button overflow-hidden flex"
           style={{ filter: "blur(8px)", opacity: 0.4 }}
         >
           {activeStatuses.map((status) => {
@@ -64,22 +56,20 @@ export function StatusBreakdownBar({ breakdown }: Props) {
         </div>
 
         {/* Main bar */}
-        <div
-          className="relative rounded-xl overflow-hidden flex h-4"
-          style={{ background: "var(--bg-elevated)" }}
-        >
+        <div className="relative rounded-button overflow-hidden flex h-4 bg-surface-elevated">
           {ORDER.map((status) => {
             const count = breakdown[status];
             if (count === 0) return null;
             const pct = (count / total) * 100;
             return (
-              <motion.div
+              <div
                 key={status}
-                initial={{ width: 0 }}
-                animate={{ width: `${pct}%` }}
-                transition={spring.snappy}
                 className="relative overflow-hidden"
-                style={{ background: STATUS_CONFIG[status].color }}
+                style={{
+                  width: mounted ? `${pct}%` : "0%",
+                  background: STATUS_CONFIG[status].color,
+                  transition: "width var(--dur-slow) var(--ease-out-quart)",
+                }}
                 title={`${STATUS_CONFIG[status].label}: ${count}`}
               >
                 {/* Glossy inner highlight */}
@@ -90,7 +80,7 @@ export function StatusBreakdownBar({ breakdown }: Props) {
                       "linear-gradient(to bottom, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 60%)",
                   }}
                 />
-              </motion.div>
+              </div>
             );
           })}
         </div>
@@ -115,6 +105,6 @@ export function StatusBreakdownBar({ breakdown }: Props) {
           </span>
         ))}
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -79,15 +79,15 @@ export function ScreenshotUpload({ label, source, currentUrl, onUpload, onClear,
 
   return (
     <div aria-busy={scanning}>
-      <p className="text-xs font-semibold tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs font-semibold tracking-wide mb-2 text-content-muted">
         {label} Screenshot
       </p>
       {currentUrl ? (
         <div className="relative">
           {scanning && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl"
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-card"
               role="status" aria-label="Scanning image"
-              style={{ background: "rgba(0,0,0,0.6)" }}>
+              style={{ background: "var(--modal-overlay)" }}>
               <div className="text-center text-white">
                 <div className="animate-spin w-6 h-6 border-2 border-white border-t-transparent rounded-full mx-auto mb-2" />
                 <p className="text-xs font-medium">Scanning metrics with AI...</p>
@@ -95,35 +95,32 @@ export function ScreenshotUpload({ label, source, currentUrl, onUpload, onClear,
             </div>
           )}
           <button onClick={() => setPreviewOpen(!previewOpen)}
-            className="w-full rounded-xl overflow-hidden border transition-all hover:opacity-90"
-            style={{ borderColor: "var(--border)" }}>
+            className="w-full rounded-card overflow-hidden border border-[var(--card-border)] transition-all hover:opacity-90 pressable">
             <NextImage src={currentUrl} alt={label} width={800} height={450} unoptimized className="w-full h-auto" style={{ maxHeight: previewOpen ? "none" : "120px", objectFit: "cover" }} />
           </button>
           <div className="flex gap-2 mt-2">
             <button onClick={() => fileInputRef.current?.click()}
-              className="flex-1 text-xs py-2 rounded-lg border font-medium transition-all hover:opacity-80 inline-touch"
-              style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+              className="flex-1 text-xs py-2 rounded-button border border-[var(--card-border)] font-medium transition-all hover:opacity-80 inline-touch pressable text-content-secondary">
               Replace
             </button>
             <button onClick={() => scanImage(currentUrl)}
               disabled={scanning}
-              className="flex-1 text-xs py-2 rounded-lg border font-medium transition-all hover:opacity-80 disabled:opacity-50 inline-touch"
-              style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+              className="flex-1 text-xs py-2 rounded-button border border-[var(--card-border)] font-medium transition-all hover:opacity-80 disabled:opacity-50 inline-touch pressable text-content-secondary">
               {scanning ? "Scanning..." : "Re-scan"}
             </button>
             <button onClick={onClear}
-              className="text-xs py-2 px-3 rounded-lg font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all inline-touch">
+              className="text-xs py-2 px-3 rounded-button font-medium text-danger hover:bg-surface-elevated transition-all inline-touch pressable">
               Remove
             </button>
           </div>
           {scanError && (
-            <p className="text-xs text-red-500 mt-2">{scanError}</p>
+            <p className="text-xs text-danger mt-2">{scanError}</p>
           )}
         </div>
       ) : (
         <button onClick={() => fileInputRef.current?.click()}
-          className="w-full py-6 rounded-xl border-2 border-dashed flex flex-col items-center gap-2 transition-all hover:opacity-80"
-          style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
+          className="w-full py-6 rounded-card border-2 border-dashed flex flex-col items-center gap-2 transition-all hover:opacity-80 pressable text-content-muted"
+          style={{ borderColor: "var(--border-active)" }}>
           <span className="text-2xl">📸</span>
           <span className="text-sm font-medium">Tap to upload screenshot</span>
           <span className="text-xs">AI auto-scans metrics from your {label} app</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { LazyMotion, domAnimation, m, AnimatePresence } from "framer-motion";
 
 function formatMessage(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
@@ -212,11 +212,12 @@ export function ChatSheet({ open, onClose, initialContext }: ChatSheetProps) {
   const chatTop = viewport ? `${viewport.offsetTop}px` : 0;
 
   return (
+    <LazyMotion features={domAnimation} strict>
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[60]">
           {/* Backdrop covers the full layout viewport so nothing bleeds through */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -226,7 +227,7 @@ export function ChatSheet({ open, onClose, initialContext }: ChatSheetProps) {
             onClick={onClose}
           />
           {/* Chat panel pinned to the visible viewport (above the iOS keyboard) */}
-          <motion.div
+          <m.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
@@ -243,7 +244,7 @@ export function ChatSheet({ open, onClose, initialContext }: ChatSheetProps) {
             <div className="shrink-0 px-4 py-3 border-b flex items-center justify-between safe-area-top"
               style={{ borderColor: "var(--border)", background: "var(--bg-card)" }}>
               <div className="flex items-center gap-3">
-                <button onClick={onClose} className="w-10 h-10 rounded-lg flex items-center justify-center text-sm"
+                <button onClick={onClose} className="w-10 h-10 rounded-button flex items-center justify-center text-sm pressable"
                   style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
                   aria-label="Close chat">
                   {"\u2190"}
@@ -259,14 +260,17 @@ export function ChatSheet({ open, onClose, initialContext }: ChatSheetProps) {
                 {messages.length > 1 && (
                   <button
                     onClick={clearChat}
-                    className="text-[11px] font-bold px-2.5 py-1.5 rounded-full transition-all hover:scale-105"
+                    className="text-[11px] font-bold px-2.5 py-1.5 rounded-full pressable"
                     style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
                     aria-label="Clear chat history"
                   >
                     Clear
                   </button>
                 )}
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                  style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-light))", color: "var(--accent-contrast)" }}
+                >
                   AI
                 </div>
               </div>
@@ -277,12 +281,12 @@ export function ChatSheet({ open, onClose, initialContext }: ChatSheetProps) {
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed ${
+                    className={`max-w-[85%] rounded-card px-4 py-2.5 text-[15px] leading-relaxed ${
                       msg.role === "user" ? "rounded-br-md" : "rounded-bl-md"
                     }`}
                     style={{
-                      background: msg.role === "user" ? "var(--text-primary)" : "var(--bg-elevated)",
-                      color: msg.role === "user" ? "var(--bg-primary)" : "var(--text-primary)",
+                      background: msg.role === "user" ? "var(--accent)" : "var(--bg-elevated)",
+                      color: msg.role === "user" ? "var(--accent-contrast)" : "var(--text-primary)",
                     }}
                   >
                     {msg.role === "assistant" ? formatMessage(msg.text) : msg.text}
@@ -291,7 +295,7 @@ export function ChatSheet({ open, onClose, initialContext }: ChatSheetProps) {
               ))}
               {loading && (
                 <div className="flex justify-start">
-                  <div className="rounded-2xl rounded-bl-md px-4 py-2.5 text-sm"
+                  <div className="rounded-card rounded-bl-md px-4 py-2.5 text-sm"
                     style={{ background: "var(--bg-elevated)", color: "var(--text-muted)" }}>
                     <span className="inline-flex gap-1">
                       <span className="animate-pulse">.</span>
@@ -315,14 +319,14 @@ export function ChatSheet({ open, onClose, initialContext }: ChatSheetProps) {
                   placeholder="Ask about your workouts..."
                   enterKeyHint="send"
                   autoComplete="off"
-                  className="flex-1 px-3 py-2.5 rounded-xl border text-[15px] outline-none"
-                  style={{ background: "var(--bg-elevated)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                  className="input-field flex-1 h-11 px-3 rounded-button border text-[15px] outline-none"
+                  style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)" }}
                 />
                 <button
                   onClick={send}
                   disabled={loading || !input.trim()}
-                  className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-sm font-semibold transition-all disabled:opacity-30"
-                  style={{ background: "var(--text-primary)", color: "var(--bg-primary)" }}
+                  className="shrink-0 w-11 h-11 rounded-button flex items-center justify-center text-sm font-semibold pressable disabled:opacity-30"
+                  style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
                   aria-label="Send message"
                 >
                   {loading ? (
@@ -336,9 +340,10 @@ export function ChatSheet({ open, onClose, initialContext }: ChatSheetProps) {
                 </button>
               </div>
             </div>
-          </motion.div>
+          </m.div>
         </div>
       )}
     </AnimatePresence>
+    </LazyMotion>
   );
 }

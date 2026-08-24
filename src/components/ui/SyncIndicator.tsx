@@ -2,9 +2,9 @@
 
 export function SyncIndicator({ status }: { status: "idle" | "syncing" | "error" }) {
   const colors = {
-    idle: "#22c55e",
-    syncing: "#f59e0b",
-    error: "#ef4444",
+    idle: "var(--accent)",
+    syncing: "var(--warning)",
+    error: "var(--danger)",
   };
 
   const labels = {

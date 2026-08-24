@@ -58,10 +58,9 @@ export function ExportButton({ data }: { data: RecoveryData }) {
   };
 
   return (
-    <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+    <div className="pt-2">
       <button onClick={exportCSV}
-        className="w-full py-3 rounded-xl text-sm font-medium border transition-all hover:opacity-80"
-        style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+        className="w-full h-11 px-4 rounded-button bg-surface-elevated text-content-primary text-sm font-medium ring-1 ring-[var(--card-border)] transition-all hover:opacity-80 pressable">
         📥 Export All Data (CSV)
       </button>
     </div>

@@ -19,11 +19,14 @@ import { CountdownIntro } from "./CountdownIntro";
 import { TimerRing } from "./TimerRing";
 import { Icon } from "@/components/ui/Icon";
 
+// Phase hues ride the design tokens: work/complete = brand accent, eccentric
+// (down) = warning, idle = muted. Alphas go through color-mix so the var()
+// colors can be tinted for glows and chips.
 const PHASE_COLOR = {
-  up: "#22c55e",
-  down: "#f59e0b",
-  done: "#60a5fa",
-  idle: "#6b7280",
+  up: "var(--accent)",
+  down: "var(--warning)",
+  done: "var(--accent)",
+  idle: "var(--text-muted)",
 } as const;
 
 const DEFAULT_PROTOCOL: RepProtocol = {
@@ -234,14 +237,14 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
     : phase === "done" ? 100 : 0;
 
   return (
-    <div className="rounded-2xl overflow-hidden relative" style={{ background: "var(--timer-bg, #1a1a2e)" }}>
+    <div className="rounded-card overflow-hidden relative" style={{ background: "var(--timer-bg, #1a1a2e)" }}>
       {showCountdown && <CountdownIntro onComplete={beginTimer} />}
 
       {/* Phase-tinted ambient glow */}
       <div
         className="absolute inset-0 pointer-events-none transition-all duration-700"
         style={{
-          background: `radial-gradient(420px 300px at 50% 40%, ${phaseColor}1f, transparent 70%)`,
+          background: `radial-gradient(420px 300px at 50% 40%, color-mix(in srgb, ${phaseColor} 12%, transparent), transparent 70%)`,
           opacity: phase === "idle" ? 0.35 : 1,
         }}
       />
@@ -252,7 +255,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
           <span
             className="text-[11px] font-bold uppercase tracking-[0.14em] px-2.5 py-1 rounded-full inline-touch"
             style={{
-              background: phase === "idle" ? "rgba(255,255,255,0.08)" : `${phaseColor}26`,
+              background: phase === "idle" ? "rgba(255,255,255,0.08)" : `color-mix(in srgb, ${phaseColor} 15%, transparent)`,
               color: phase === "idle" ? "rgba(255,255,255,0.55)" : phaseColor,
             }}
           >
@@ -274,7 +277,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
                   {protocol.upSeconds}s up · {protocol.downSeconds}s down
                 </p>
-                <p className="text-4xl font-black tabular-nums tracking-tight text-white mt-1.5">
+                <p className="text-4xl font-display font-bold tabular-nums tracking-tight text-white mt-1.5">
                   {totalReps} reps
                 </p>
                 <p className="text-[11px] mt-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -295,12 +298,12 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
                     fontSize: "2.5rem",
                     lineHeight: 1.1,
                     color: phaseColor,
-                    textShadow: `0 0 24px ${phaseColor}40`,
+                    textShadow: `0 0 24px color-mix(in srgb, ${phaseColor} 25%, transparent)`,
                   }}
                 >
                   {phaseLabel}
                 </p>
-                <p className="font-black tabular-nums text-white" style={{ fontSize: "3.25rem", lineHeight: 1.05 }}>
+                <p className="font-display font-bold tabular-nums text-white" style={{ fontSize: "4rem", lineHeight: 1.05, letterSpacing: "-0.03em" }}>
                   {phaseSecondsLeft}
                 </p>
                 <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
@@ -348,7 +351,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
           <button
             onClick={reset}
             aria-label="Reset rep timer"
-            className="w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-90 text-white"
+            className="w-11 h-11 rounded-full flex items-center justify-center pressable text-white"
             style={{ background: "rgba(255,255,255,0.08)" }}
           >
             <Icon name="reset" size={17} strokeWidth={2.2} />
@@ -356,12 +359,13 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
           <button
             onClick={running ? pause : start}
             aria-label={running ? "Pause rep timer" : phase === "done" ? "Restart rep timer" : "Start rep timer"}
-            className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-95 text-white"
+            className={`w-16 h-16 rounded-full flex items-center justify-center pressable${running ? " text-white" : ""}`}
             style={{
               background: running
                 ? "rgba(255,255,255,0.12)"
-                : `linear-gradient(135deg, ${PHASE_COLOR.up}, #16a34a)`,
-              boxShadow: running ? "none" : `0 4px 20px ${PHASE_COLOR.up}40`,
+                : "linear-gradient(135deg, var(--accent), var(--accent-light))",
+              color: running ? undefined : "var(--accent-contrast)",
+              boxShadow: running ? "none" : "0 4px 20px color-mix(in srgb, var(--accent) 25%, transparent)",
             }}
           >
             <Icon name={running ? "pause" : "play"} size={26} />
@@ -370,7 +374,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
             onClick={stopSet}
             disabled={phase === "idle" || phase === "done"}
             aria-label="Mark set complete"
-            className="w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-90 text-white disabled:opacity-25"
+            className="w-11 h-11 rounded-full flex items-center justify-center pressable text-white disabled:opacity-25"
             style={{ background: "rgba(255,255,255,0.08)" }}
           >
             <Icon name="stop" size={17} />

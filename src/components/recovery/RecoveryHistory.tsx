@@ -39,8 +39,8 @@ function TrendChart({ label, unit, entries, heightFn, colorFn }: {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>{label}</span>
-        <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs font-medium text-content-secondary">{label}</span>
+        <span className="text-xs tabular-nums text-content-muted">
           {latest ?? "---"}{unit ?? ""}
         </span>
       </div>
@@ -86,18 +86,18 @@ export function RecoveryHistory({ data }: { data: RecoveryData }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold tracking-wide" style={{ color: "var(--text-muted)" }}>
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-content-secondary">
           14-Day Trends
         </p>
         {allSources.size > 0 && (
           <div className="flex items-center gap-2">
             {allSources.has("oura") && (
-              <span className="text-[11px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "var(--bg-elevated)", color: "var(--text-muted)" }}>
+              <span className="text-[11px] px-1.5 py-0.5 rounded-full font-medium bg-surface-elevated text-content-muted">
                 Oura
               </span>
             )}
             {allSources.has("eightSleep") && (
-              <span className="text-[11px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "var(--bg-elevated)", color: "var(--text-muted)" }}>
+              <span className="text-[11px] px-1.5 py-0.5 rounded-full font-medium bg-surface-elevated text-content-muted">
                 Eight Sleep
               </span>
             )}
@@ -108,28 +108,28 @@ export function RecoveryHistory({ data }: { data: RecoveryData }) {
         <TrendChart
           label="Recovery Score" entries={scoreEntries}
           heightFn={(v) => `${(v / 100) * 100}%`}
-          colorFn={(v) => v >= 85 ? "#22c55e" : v >= 70 ? "#f59e0b" : "#ef4444"}
+          colorFn={(v) => v >= 85 ? "var(--accent)" : v >= 70 ? "var(--warning)" : "var(--danger)"}
         />
         <TrendChart
           label="HRV" unit="ms" entries={hrvEntries}
           heightFn={(v) => `${(v / maxHrv) * 100}%`}
-          colorFn={(v) => v >= 60 ? "#22c55e" : v >= 40 ? "#f59e0b" : "#ef4444"}
+          colorFn={(v) => v >= 60 ? "var(--accent)" : v >= 40 ? "var(--warning)" : "var(--danger)"}
         />
         <TrendChart
           label="RHR" unit="bpm" entries={rhrEntries}
           heightFn={(v) => `${((v - minRhr + 5) / (maxRhr - minRhr + 10)) * 100}%`}
-          colorFn={(v) => v <= 50 ? "#22c55e" : v <= 65 ? "#f59e0b" : "#ef4444"}
+          colorFn={(v) => v <= 50 ? "var(--accent)" : v <= 65 ? "var(--warning)" : "var(--danger)"}
         />
       </div>
       <div className="flex justify-between mt-1">
-        <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>14d ago</span>
+        <span className="text-[11px] text-content-muted">14d ago</span>
         <div className="flex items-center gap-2">
           {allSources.size > 1 && (
-            <span className="text-[11px] flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+            <span className="text-[11px] flex items-center gap-1 text-content-muted">
               <span className="inline-block w-2 h-[2px] rounded" style={{ background: "#6366f1" }} /> Eight Sleep
             </span>
           )}
-          <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>Today</span>
+          <span className="text-[11px] text-content-muted">Today</span>
         </div>
       </div>
     </div>

@@ -19,11 +19,14 @@ import {
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
 import type { CircuitExercise } from "@/lib/workoutData";
 
+// Phase hues ride the design tokens: work/complete = brand accent, rest =
+// warning, idle = muted. Alphas go through color-mix so the var() colors can
+// be tinted for glows and chips.
 const PHASE_COLOR = {
-  work: "#22c55e",
-  rest: "#f59e0b",
-  done: "#60a5fa",
-  idle: "#6b7280",
+  work: "var(--accent)",
+  rest: "var(--warning)",
+  done: "var(--accent)",
+  idle: "var(--text-muted)",
 } as const;
 
 function formatTime(seconds: number): string {
@@ -405,14 +408,14 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
       : null;
 
   return (
-    <div className="rounded-2xl overflow-hidden relative" style={{ background: "var(--timer-bg, #1a1a2e)" }}>
+    <div className="rounded-card overflow-hidden relative" style={{ background: "var(--timer-bg, #1a1a2e)" }}>
       {showCountdown && <CountdownIntro onComplete={handleCountdownComplete} />}
 
       {/* Phase-tinted ambient glow */}
       <div
         className="absolute inset-0 pointer-events-none transition-all duration-700"
         style={{
-          background: `radial-gradient(420px 300px at 50% 38%, ${phaseColor}1f, transparent 70%)`,
+          background: `radial-gradient(420px 300px at 50% 38%, color-mix(in srgb, ${phaseColor} 12%, transparent), transparent 70%)`,
           opacity: phase === "idle" ? 0.35 : 1,
         }}
       />
@@ -449,7 +452,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
         <div className="flex items-center justify-between mb-1">
           <span
             className="text-[11px] font-bold uppercase tracking-[0.14em] px-2.5 py-1 rounded-full inline-touch"
-            style={{ background: `${phaseColor}26`, color: phaseColor }}
+            style={{ background: `color-mix(in srgb, ${phaseColor} 15%, transparent)`, color: phaseColor }}
           >
             {phaseChip}
           </span>
@@ -476,7 +479,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.4)" }}>
                   {circuitSummary(exercises)}
                 </p>
-                <p className="text-5xl font-black tabular-nums tracking-tight text-white mt-2">
+                <p className="text-5xl font-display font-bold tabular-nums tracking-tight text-white mt-2">
                   {formatTime(totalSeconds)}
                 </p>
                 <p className="text-[11px] mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -502,16 +505,16 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
                 </p>
                 {phase === "work" && isBilateral && (
                   showSwitch ? (
-                    <p className="text-xs font-black text-amber-400 animate-pulse">SWITCH SIDES</p>
+                    <p className="text-xs font-black text-warning animate-pulse">SWITCH SIDES</p>
                   ) : (
-                    <p className="text-[11px] font-semibold text-cyan-400">
+                    <p className="text-[11px] font-semibold text-accent-light">
                       {timeLeft > halfwayPoint ? "Side 1" : "Side 2"}
                     </p>
                   )
                 )}
                 <p
-                  className="font-black tabular-nums text-white"
-                  style={{ fontSize: "3.75rem", lineHeight: 1.05, letterSpacing: "-0.02em" }}
+                  className="font-display font-bold tabular-nums text-white"
+                  style={{ fontSize: "4.5rem", lineHeight: 1.05, letterSpacing: "-0.03em" }}
                 >
                   {formatTime(timeLeft)}
                 </p>
@@ -542,9 +545,9 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
                 <button
                   key={r}
                   onClick={() => setSelectedRounds(r)}
-                  className="w-8 h-8 rounded-full text-xs font-bold transition-all inline-touch"
+                  className="w-8 h-8 rounded-full text-xs font-bold pressable inline-touch"
                   style={selectedRounds === r
-                    ? { background: PHASE_COLOR.work, color: "#fff" }
+                    ? { background: "var(--accent)", color: "var(--accent-contrast)" }
                     : { color: "rgba(255,255,255,0.55)" }}
                 >
                   {r}x
@@ -558,7 +561,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
         <div className="flex items-center justify-center gap-4">
           <button
             onClick={reset}
-            className="w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-90 text-white"
+            className="w-11 h-11 rounded-full flex items-center justify-center pressable text-white"
             style={{ background: "rgba(255,255,255,0.08)" }}
             aria-label="Reset timer"
           >
@@ -566,12 +569,13 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
           </button>
           <button
             onClick={togglePause}
-            className="w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-95 text-white"
+            className={`w-16 h-16 rounded-full flex items-center justify-center pressable${running ? " text-white" : ""}`}
             style={{
               background: running
                 ? "rgba(255,255,255,0.12)"
-                : `linear-gradient(135deg, ${phase === "done" ? PHASE_COLOR.done : PHASE_COLOR.work}, ${phase === "done" ? "#3b82f6" : "#16a34a"})`,
-              boxShadow: running ? "none" : `0 4px 20px ${phase === "done" ? PHASE_COLOR.done : PHASE_COLOR.work}40`,
+                : "linear-gradient(135deg, var(--accent), var(--accent-light))",
+              color: running ? undefined : "var(--accent-contrast)",
+              boxShadow: running ? "none" : "0 4px 20px color-mix(in srgb, var(--accent) 25%, transparent)",
             }}
             aria-label={running ? "Pause" : phase === "done" ? "Restart" : "Start timer"}
           >
@@ -580,7 +584,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
           <button
             onClick={skip}
             disabled={phase === "idle" || phase === "done"}
-            className="w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-90 text-white disabled:opacity-25"
+            className="w-11 h-11 rounded-full flex items-center justify-center pressable text-white disabled:opacity-25"
             style={{ background: "rgba(255,255,255,0.08)" }}
             aria-label="Skip to next exercise"
           >

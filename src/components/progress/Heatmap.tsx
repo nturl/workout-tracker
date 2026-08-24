@@ -81,8 +81,8 @@ export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions
     <div>
       {/* Legend */}
       <div className={`flex items-center ${compact ? "justify-end" : "justify-between"} mb-3`}>
-        {!compact && <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>8-Week History</span>}
-        <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
+        {!compact && <span className="text-[15px] leading-[22px] font-semibold text-content-primary">8-Week History</span>}
+        <div className="flex items-center gap-1 text-[10px] text-content-muted">
           <span>Less</span>
           {[0, 0.25, 0.5, 0.75, 1].map((v) => (
             <div key={v} className="w-3 h-3 rounded-sm" style={{
@@ -108,8 +108,7 @@ export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions
         {weekStarts.map((ws, wi) => (
           <div
             key={`wh-${wi}`}
-            className="text-[9px] font-medium text-center truncate px-0.5"
-            style={{ color: "var(--text-muted)" }}
+            className="text-[9px] font-medium text-center truncate px-0.5 text-content-muted"
           >
             {ws.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </div>
@@ -124,8 +123,7 @@ export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions
             /* Row label with dot */
             <div
               key={`rl-${dayIdx}`}
-              className="flex items-center gap-1 pr-1"
-              style={{ color: "var(--text-muted)" }}
+              className="flex items-center gap-1 pr-1 text-content-muted"
             >
               <div
                 className="w-1.5 h-1.5 rounded-full shrink-0"
@@ -168,11 +166,8 @@ export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions
                   {/* Mobile tap tooltip */}
                   {isTapped && (
                     <div
-                      className="absolute z-10 px-2 py-1 rounded-lg text-[10px] font-semibold whitespace-nowrap pointer-events-none"
+                      className="absolute z-10 px-2 py-1 rounded-button text-[10px] font-semibold whitespace-nowrap pointer-events-none glass-card text-content-primary"
                       style={{
-                        background: "var(--bg-card)",
-                        color: "var(--text-primary)",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                         bottom: "calc(100% + 4px)",
                         left: "50%",
                         transform: "translateX(-50%)",

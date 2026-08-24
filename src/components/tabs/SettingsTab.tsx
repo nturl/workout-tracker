@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { type Level } from "@/lib/workoutData";
 import { PushSetup } from "@/components/settings/PushSetup";
 import { ConnectedAccounts } from "@/components/settings/ConnectedAccounts";
@@ -9,6 +10,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { useSync } from "@/hooks/useSync";
 import { useAuth, UserButton } from "@clerk/nextjs";
 import type { Theme } from "@/types/workout";
+
+const sectionLabel =
+  "text-[12px] leading-[16px] font-semibold tracking-[0.08em] uppercase text-content-secondary mb-3";
 
 export function SettingsTab() {
   const level = useWorkoutStore((s) => s.level);
@@ -32,16 +36,16 @@ export function SettingsTab() {
     <div className="max-w-lg mx-auto px-5 pt-5 pb-24">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Settings</h2>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Customize your experience</p>
+          <h2 className="font-display text-[28px] leading-[34px] font-bold tracking-[-0.03em] text-content-primary">Settings</h2>
+          <p className="text-[15px] leading-[22px] text-content-muted">Customize your experience</p>
         </div>
         <UserButton />
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-6 anim-stagger">
         {/* Level */}
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}>
-          <p className="text-xs font-semibold tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>Level</p>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 0 } as CSSProperties}>
+          <p className={sectionLabel}>Level</p>
           <div className="flex gap-2" role="radiogroup" aria-label="Difficulty level">
             {([
               { value: "beginner" as Level, label: "Beginner", icon: "🌱" },
@@ -50,14 +54,11 @@ export function SettingsTab() {
             ]).map((l) => (
               <button key={l.value} onClick={() => handleSetLevel(l.value)}
                 role="radio" aria-checked={level === l.value}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  level === l.value ? "shadow-lg" : "border hover:opacity-80"
-                }`}
-                style={{
-                  background: level === l.value ? "var(--text-primary)" : "var(--bg-card)",
-                  color: level === l.value ? "var(--bg-primary)" : "var(--text-secondary)",
-                  borderColor: level !== l.value ? "var(--border)" : undefined,
-                }}>
+                className={`flex-1 h-11 rounded-button text-[13px] leading-[16px] font-medium pressable ${
+                  level === l.value
+                    ? "bg-accent text-accent-contrast"
+                    : "bg-surface-elevated text-content-secondary hover:opacity-80"
+                }`}>
                 {l.icon} {l.label}
               </button>
             ))}
@@ -65,8 +66,8 @@ export function SettingsTab() {
         </div>
 
         {/* Theme */}
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}>
-          <p className="text-xs font-semibold tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>Appearance</p>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 1 } as CSSProperties}>
+          <p className={sectionLabel}>Appearance</p>
           <div className="flex gap-2" role="radiogroup" aria-label="Theme">
             {([
               { value: "light" as Theme, label: "Light", icon: "☀️" },
@@ -75,14 +76,11 @@ export function SettingsTab() {
             ]).map((t) => (
               <button key={t.value} onClick={() => setTheme(t.value)}
                 role="radio" aria-checked={theme === t.value}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  theme === t.value ? "shadow-lg" : "border hover:opacity-80"
-                }`}
-                style={{
-                  background: theme === t.value ? "var(--text-primary)" : "var(--bg-card)",
-                  color: theme === t.value ? "var(--bg-primary)" : "var(--text-secondary)",
-                  borderColor: theme !== t.value ? "var(--border)" : undefined,
-                }}>
+                className={`flex-1 h-11 rounded-button text-[13px] leading-[16px] font-medium pressable ${
+                  theme === t.value
+                    ? "bg-accent text-accent-contrast"
+                    : "bg-surface-elevated text-content-secondary hover:opacity-80"
+                }`}>
                 {t.icon} {t.label}
               </button>
             ))}
@@ -90,18 +88,18 @@ export function SettingsTab() {
         </div>
 
         {/* Notifications */}
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 2 } as CSSProperties}>
           <PushSetup />
         </div>
 
         {/* Daily Habits */}
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 3 } as CSSProperties}>
           <HabitManager syncNow={syncNow} />
         </div>
 
         {/* Timer */}
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}>
-          <p className="text-xs font-semibold tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>Timer</p>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 4 } as CSSProperties}>
+          <p className={sectionLabel}>Timer</p>
           <div className="space-y-3">
             {([
               { key: "audio", label: "Audio cues", description: "Beeps on rep boundaries and set complete" },
@@ -114,10 +112,10 @@ export function SettingsTab() {
               return (
                 <div key={opt.key} className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold" style={{ color: disabled ? "var(--text-muted)" : "var(--text-primary)" }}>
+                    <p className={`text-sm font-semibold ${disabled ? "text-content-muted" : "text-content-primary"}`}>
                       {opt.label}
                     </p>
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>{opt.description}</p>
+                    <p className="text-[12px] leading-[16px] font-medium text-content-muted">{opt.description}</p>
                   </div>
                   <button
                     type="button"
@@ -126,8 +124,9 @@ export function SettingsTab() {
                     aria-checked={enabled}
                     aria-label={opt.label}
                     disabled={disabled}
-                    className={`shrink-0 w-12 h-7 rounded-full transition-all relative ${enabled && !disabled ? "bg-green-500" : ""} ${disabled ? "opacity-40" : ""}`}
-                    style={{ background: enabled && !disabled ? undefined : "var(--border)" }}
+                    className={`shrink-0 w-12 h-7 rounded-full transition-colors relative pressable ${
+                      enabled && !disabled ? "bg-accent" : "bg-border-active"
+                    } ${disabled ? "opacity-40" : ""}`}
                   >
                     <div className={`w-5 h-5 rounded-full bg-white shadow-md absolute top-1 transition-all ${enabled ? "left-6" : "left-1"}`} />
                   </button>
@@ -138,7 +137,7 @@ export function SettingsTab() {
         </div>
 
         {/* Connected Accounts */}
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-sm)" }}>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 5 } as CSSProperties}>
           <ConnectedAccounts />
         </div>
       </div>

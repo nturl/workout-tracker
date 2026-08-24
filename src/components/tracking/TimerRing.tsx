@@ -7,6 +7,8 @@ interface TimerRingProps {
   strokeWidth?: number;
   // Elapsed percentage 0..100. Animates forward once per second via CSS.
   pct: number;
+  // Arc stroke. Callers pass design-token colors (var(--accent),
+  // var(--warning), ...); the glow tint uses color-mix so var() colors work.
   color: string;
   // Remount key for the progress arc: change it on phase/segment boundaries
   // so the arc snaps to its new position instead of animating backwards.
@@ -22,9 +24,15 @@ export function TimerRing({ size = 216, strokeWidth = 9, pct, color, cycleKey, c
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.min(Math.max(pct, 0), 100);
   const offset = circumference * (1 - clamped / 100);
+  // Glow only on active/complete states (spec §5); idle rings stay flat.
+  const active = clamped > 0;
+  const complete = clamped >= 100;
 
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+    <div
+      className={`relative inline-flex items-center justify-center rounded-full${complete ? " glow-accent" : ""}`}
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} className="absolute inset-0 -rotate-90">
         <circle
           cx={size / 2} cy={size / 2} r={radius}
@@ -37,7 +45,9 @@ export function TimerRing({ size = 216, strokeWidth = 9, pct, color, cycleKey, c
           strokeDasharray={circumference} strokeDashoffset={offset}
           style={{
             transition: "stroke-dashoffset 1s linear, stroke 0.3s ease",
-            filter: `drop-shadow(0 0 7px ${color}59)`,
+            filter: active
+              ? `drop-shadow(0 0 7px color-mix(in srgb, ${color} 35%, transparent))`
+              : "none",
           }}
         />
       </svg>

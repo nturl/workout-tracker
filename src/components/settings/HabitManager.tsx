@@ -81,12 +81,12 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
   };
 
   const iconBtn =
-    "shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:hover:scale-100";
+    "pressable shrink-0 w-8 h-8 rounded-button flex items-center justify-center disabled:opacity-30";
 
   return (
     <div>
-      <p className="text-xs font-semibold tracking-wide mb-1" style={{ color: "var(--text-muted)" }}>Daily Habits</p>
-      <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+      <p className="text-[12px] font-semibold tracking-[0.08em] uppercase mb-1" style={{ color: "var(--text-secondary)" }}>Daily Habits</p>
+      <p className="text-[12px] font-medium mb-3" style={{ color: "var(--text-muted)" }}>
         Reorder, rename, or remove the habits on your Workouts tab.
       </p>
 
@@ -97,8 +97,7 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
           return (
             <div
               key={h.id}
-              className="flex items-center gap-2 rounded-xl px-2.5 py-2"
-              style={{ background: "var(--bg-elevated)" }}
+              className="glass-card flex items-center gap-2 rounded-button px-2.5 py-2"
             >
               {/* Reorder */}
               <div className="flex flex-col -my-1">
@@ -107,7 +106,7 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
                   onClick={() => move(h.id, "up")}
                   disabled={i === 0}
                   aria-label={`Move ${h.label} up`}
-                  className="w-6 h-4 flex items-center justify-center transition-opacity disabled:opacity-20 hover:opacity-70"
+                  className="pressable w-6 h-4 flex items-center justify-center disabled:opacity-20"
                   style={{ color: "var(--text-muted)" }}
                 >
                   <Icon name="arrow-up" size={13} strokeWidth={2.4} />
@@ -117,7 +116,7 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
                   onClick={() => move(h.id, "down")}
                   disabled={i === habitDefs.length - 1}
                   aria-label={`Move ${h.label} down`}
-                  className="w-6 h-4 flex items-center justify-center transition-opacity disabled:opacity-20 hover:opacity-70"
+                  className="pressable w-6 h-4 flex items-center justify-center disabled:opacity-20"
                   style={{ color: "var(--text-muted)" }}
                 >
                   <Icon name="arrow-down" size={13} strokeWidth={2.4} />
@@ -136,11 +135,11 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
                   }}
                   maxLength={100}
                   aria-label="Habit name"
-                  className="flex-1 min-w-0 bg-transparent text-sm font-semibold outline-none border-b"
+                  className="input-field flex-1 min-w-0 bg-transparent text-[15px] font-medium outline-none border-b"
                   style={{ color: "var(--text-primary)", borderColor: "var(--accent)" }}
                 />
               ) : (
-                <span className="flex-1 min-w-0 truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                <span className="flex-1 min-w-0 truncate text-[15px] font-medium" style={{ color: "var(--text-primary)" }}>
                   {h.label}
                 </span>
               )}
@@ -149,11 +148,11 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
               {isEditing ? (
                 <>
                   <button type="button" onClick={commitEdit} aria-label="Save name" className={iconBtn}
-                    style={{ background: "var(--accent)", color: "#fff" }}>
+                    style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}>
                     <Icon name="check" size={15} strokeWidth={2.6} />
                   </button>
                   <button type="button" onClick={cancelEdit} aria-label="Cancel" className={iconBtn}
-                    style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
                     <Icon name="close" size={14} strokeWidth={2.4} />
                   </button>
                 </>
@@ -161,19 +160,19 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
                 <>
                   <button ref={removeBtnRef} type="button" onClick={() => confirmDelete(h.id)} aria-label={`Confirm remove ${h.label}`}
                     onKeyDown={(e) => { if (e.key === "Escape") setConfirmDeleteId(null); }}
-                    className="shrink-0 h-8 px-3 rounded-lg text-xs font-bold transition-all hover:scale-105 active:scale-95"
-                    style={{ background: "#ef4444", color: "#fff" }}>
+                    className="pressable shrink-0 h-8 px-3 rounded-button text-[13px] font-semibold"
+                    style={{ background: "var(--danger)", color: "var(--accent-contrast)" }}>
                     Remove
                   </button>
                   <button type="button" onClick={() => setConfirmDeleteId(null)} aria-label="Cancel" className={iconBtn}
-                    style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
                     <Icon name="close" size={14} strokeWidth={2.4} />
                   </button>
                 </>
               ) : (
                 <>
                   <button type="button" onClick={() => startEdit(h.id, h.label)} aria-label={`Rename ${h.label}`} className={iconBtn}
-                    style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
                     <Icon name="pencil" size={14} strokeWidth={2.2} />
                   </button>
                   <button type="button" onClick={() => { setEditingId(null); setConfirmDeleteId(h.id); }}
@@ -181,7 +180,7 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
                     aria-label={canDelete ? `Remove ${h.label}` : "Keep at least one habit"}
                     title={canDelete ? undefined : "Keep at least one habit"}
                     className={iconBtn}
-                    style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
                     <Icon name="trash" size={14} strokeWidth={2.2} />
                   </button>
                 </>
@@ -201,16 +200,16 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
           disabled={atLimit}
           maxLength={100}
           aria-label="New habit name"
-          className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm font-medium outline-none border disabled:opacity-50"
-          style={{ background: "var(--bg-card)", color: "var(--text-primary)", borderColor: "var(--border)" }}
+          className="input-field flex-1 min-w-0 bg-surface-input rounded-button px-3 py-2.5 text-[15px] font-medium outline-none border disabled:opacity-50"
+          style={{ background: "var(--bg-input)", color: "var(--text-primary)", borderColor: "var(--border)" }}
         />
         <button
           type="button"
           onClick={commitAdd}
           disabled={!newLabel.trim() || atLimit}
           aria-label="Add habit"
-          className="shrink-0 h-10 px-4 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
-          style={{ background: "var(--accent)", color: "#fff" }}
+          className="pressable shrink-0 h-10 px-4 rounded-button text-[13px] font-semibold flex items-center gap-1.5 disabled:opacity-40"
+          style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
         >
           <Icon name="plus" size={16} strokeWidth={2.6} />
           Add

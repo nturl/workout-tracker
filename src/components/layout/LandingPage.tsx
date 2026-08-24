@@ -1,18 +1,8 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
-import { motion } from "framer-motion";
 import { TimerRing } from "@/components/tracking/TimerRing";
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
-};
-
-const staggerContainer = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
-};
 
 const FEATURES = [
   { icon: "🗓️", title: "7-Day Program", desc: "Structured weekly plan with strength, cardio, recovery, and adventure days" },
@@ -43,18 +33,18 @@ function HeroTimerShot() {
     >
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(420px 300px at 50% 38%, #22c55e1f, transparent 70%)" }}
+        style={{ background: "radial-gradient(420px 300px at 50% 38%, var(--accent-glow), transparent 70%)" }}
       />
       <div className="relative p-5 pb-6">
         <div className="flex gap-1 mb-3" aria-hidden="true">
           {[100, 100, 58, 0, 0, 0, 0, 0].map((fill, i) => (
             <div key={i} className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.10)", flex: i % 2 === 1 ? 0.6 : 1 }}>
-              <div className="h-full rounded-full" style={{ width: `${fill}%`, background: fill === 100 ? "rgba(255,255,255,0.45)" : "#22c55e" }} />
+              <div className="h-full rounded-full" style={{ width: `${fill}%`, background: fill === 100 ? "rgba(255,255,255,0.45)" : "var(--accent)" }} />
             </div>
           ))}
         </div>
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em] px-2.5 py-1 rounded-full" style={{ background: "#22c55e26", color: "#22c55e" }}>
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] px-2.5 py-1 rounded-full" style={{ background: "var(--accent-glow)", color: "var(--accent)" }}>
             GO!
           </span>
           <span className="text-[11px] font-semibold tabular-nums" style={{ color: "rgba(255,255,255,0.45)" }}>
@@ -62,7 +52,7 @@ function HeroTimerShot() {
           </span>
         </div>
         <div className="flex justify-center my-2">
-          <TimerRing pct={58} color="#22c55e" cycleKey="hero">
+          <TimerRing pct={58} color="var(--accent)" cycleKey="hero">
             <p className="text-sm font-bold text-white leading-tight">Round 2: All-out</p>
             <p className="font-black tabular-nums text-white" style={{ fontSize: "3.75rem", lineHeight: 1.05, letterSpacing: "-0.02em" }}>
               13
@@ -86,18 +76,13 @@ export function LandingPage() {
     >
       {/* Hero */}
       <div className="max-w-2xl mx-auto px-6 pt-16 pb-14">
-        <motion.div
-          className="text-center"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          <p className="font-display font-semibold text-sm tracking-[0.2em] uppercase mb-6" style={{ color: "#1ed760" }}>
+        <div className="text-center anim-fade-up">
+          <p className="font-display font-semibold text-sm tracking-[0.2em] uppercase mb-6" style={{ color: "var(--accent)" }}>
             Workout Tracker
           </p>
           <h1
-            className="font-display text-5xl sm:text-6xl font-bold mb-6 leading-[1.05]"
-            style={{ background: "linear-gradient(135deg, #ffffff 0%, #1ed760 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+            className="font-display text-5xl sm:text-6xl font-bold mb-6 leading-[1.05] tracking-[-0.03em]"
+            style={{ background: "linear-gradient(135deg, #ffffff 0%, var(--accent) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
           >
             Train Smarter.<br />
             Recover Better.
@@ -107,36 +92,32 @@ export function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-14">
             <SignUpButton mode="redirect">
-              <button className="px-8 py-3.5 rounded-full font-bold text-black bg-white hover:bg-neutral-200 transition-all text-sm w-full sm:w-auto">
+              <button
+                className="px-8 py-3.5 rounded-full font-bold text-sm w-full sm:w-auto pressable"
+                style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
+              >
                 Get Started Free
               </button>
             </SignUpButton>
             <SignInButton mode="redirect">
-              <button className="px-8 py-3.5 rounded-full font-bold text-sm w-full sm:w-auto transition-all text-white"
+              <button className="px-8 py-3.5 rounded-full font-bold text-sm w-full sm:w-auto pressable text-white"
                 style={{ background: "rgba(255,255,255,0.08)" }}>
                 Sign In
               </button>
             </SignInButton>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 28, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ delay: 0.25, duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
-        >
+        <div className="anim-scale-in">
           <HeroTimerShot />
-        </motion.div>
+        </div>
       </div>
 
       {/* Week preview */}
       <div className="max-w-2xl mx-auto px-6 pb-16">
-        <motion.div
-          className="rounded-2xl p-6"
+        <div
+          className="rounded-card p-6 anim-fade-up"
           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.6 }}
         >
           <p className="font-display font-semibold text-xs tracking-[0.18em] uppercase text-neutral-500 mb-5">Your Week</p>
           <div className="grid grid-cols-7 gap-3">
@@ -151,35 +132,37 @@ export function LandingPage() {
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Features */}
       <div className="max-w-2xl mx-auto px-6 pb-20">
-        <h2 className="font-display text-2xl font-bold text-white text-center mb-10">Everything You Need</h2>
-        <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-3" variants={staggerContainer} initial="hidden" animate="visible">
-          {FEATURES.map((f) => (
-            <motion.div
+        <h2 className="font-display text-2xl font-bold text-white text-center mb-10 tracking-[-0.02em]">Everything You Need</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 anim-stagger">
+          {FEATURES.map((f, i) => (
+            <div
               key={f.title}
-              className="rounded-2xl p-5"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(12px)" }}
-              variants={fadeUp}
+              className="rounded-card p-5 anim-fade-up"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", "--stagger-i": i } as CSSProperties}
             >
               <span className="text-2xl mb-3 block">{f.icon}</span>
               <h3 className="font-display font-semibold text-white text-sm mb-1">{f.title}</h3>
               <p className="text-xs text-neutral-500 leading-relaxed">{f.desc}</p>
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
       </div>
 
       {/* CTA */}
       <div className="max-w-2xl mx-auto px-6 pb-20 text-center">
-        <div className="rounded-2xl p-10" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <h2 className="font-display text-3xl font-bold text-white mb-3">Ready to start?</h2>
+        <div className="rounded-card p-10" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <h2 className="font-display text-3xl font-bold text-white mb-3 tracking-[-0.02em]">Ready to start?</h2>
           <p className="text-sm text-neutral-400 mb-8">Free to use. No credit card required.</p>
           <SignUpButton mode="redirect">
-            <button className="px-8 py-3.5 rounded-full font-bold text-black bg-white hover:bg-neutral-200 transition-all text-sm">
+            <button
+              className="px-8 py-3.5 rounded-full font-bold text-sm pressable"
+              style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
+            >
               Create Your Account
             </button>
           </SignUpButton>

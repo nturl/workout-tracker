@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, memo, useMemo, useCallback } from "react";
-import { motion } from "framer-motion";
-import { spring, fadeUp } from "@/lib/motion";
 import {
   categoryColors,
   parseTimedExercises,
@@ -218,17 +216,8 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
   const progressDone = checkable ? exerciseSlugs.filter((s) => isExerciseDone(s)).length : 0;
 
   return (
-    <motion.div
-      layout
-      variants={fadeUp}
-      initial="hidden"
-      animate="visible"
-      transition={spring.gentle}
-      className="rounded-2xl transition-all duration-300 overflow-hidden relative shadow-card"
-      style={{
-        background: "var(--bg-card)",
-        boxShadow: completed ? "var(--card-shadow), var(--inset-glow)" : "var(--card-shadow)",
-      }}
+    <div
+      className={`glass-card rounded-card overflow-hidden relative anim-fade-up ${completed ? "glow-accent" : ""}`}
     >
       <ConfettiBurst active={showConfetti} />
       {/* Top accent - thin gradient line */}
@@ -253,70 +242,60 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-display font-semibold text-[15px] truncate" style={{ color: completed ? "var(--accent)" : "var(--text-primary)" }}>
+                  <h3 className={`font-display font-bold text-[20px] leading-[26px] tracking-[-0.02em] truncate ${completed ? "text-accent" : "text-content-primary"}`}>
                     {session.title}
                   </h3>
-                  <motion.span
-                    animate={{ rotate: expanded ? 180 : 0 }}
-                    className="inline-flex shrink-0"
-                    style={{ color: "var(--text-muted)" }}
+                  <span
+                    className={`inline-flex shrink-0 text-content-muted transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
                   >
                     <Icon name="chevron" size={13} strokeWidth={2.4} />
-                  </motion.span>
+                  </span>
                 </div>
-                {session.subtitle && <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{session.subtitle}</p>}
+                {session.subtitle && <p className="text-xs font-medium leading-4 truncate text-content-muted">{session.subtitle}</p>}
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2.5 flex-wrap">
               {detail.duration && (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-elevated text-content-secondary">
                   {detail.duration}
                 </span>
               )}
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-elevated text-content-secondary">
                 {session.timeOfDay.split("(")[0].trim()}
               </span>
               {session.repProtocol && (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-elevated text-content-secondary">
                   {session.repProtocol.upSeconds}s up + {session.repProtocol.downSeconds}s down
                 </span>
               )}
             </div>
             {progressTotal > 0 && !completed && (
               <div className="mt-3 flex items-center gap-2">
-                <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "var(--bg-elevated)" }}>
+                <div className="flex-1 h-1 rounded-full overflow-hidden bg-surface-elevated">
                   <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${(progressDone / progressTotal) * 100}%`, background: "var(--accent)" }}
+                    className="h-full rounded-full bg-accent transition-all duration-500"
+                    style={{ width: `${(progressDone / progressTotal) * 100}%` }}
                   />
                 </div>
-                <span className="text-[10px] font-semibold tabular-nums shrink-0" style={{ color: "var(--text-muted)" }}>
+                <span className="text-[10px] font-semibold tabular-nums shrink-0 text-content-muted">
                   {progressDone}/{progressTotal}
                 </span>
               </div>
             )}
           </div>
-          <motion.button
+          <button
             onClick={handleToggle}
-            whileTap={{ scale: 0.9 }}
             aria-label={completed ? `Mark ${session.title} incomplete` : `Mark ${session.title} complete`}
-            className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-base font-bold transition-all duration-300 ${
-              completed ? "text-white glow-accent" : ""
+            className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-base font-bold pressable transition-colors duration-300 ${
+              completed ? "bg-accent text-accent-contrast glow-accent" : "bg-surface-elevated text-content-muted"
             }`}
-            style={completed
-              ? { background: "var(--accent)" }
-              : { background: "var(--bg-elevated)", color: "var(--text-muted)" }
-            }
           >
             {completed ? <Icon name="check" size={18} strokeWidth={3} /> : ""}
-          </motion.button>
+          </button>
         </div>
         {log && (
           <div className="mt-3 space-y-1">
-            <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+            <div className="flex items-center gap-2 text-xs text-content-muted">
               {log.feeling && <span>{["", "😫", "😓", "😊", "💪", "🔥"][log.feeling]}</span>}
               {log.duration ? <span>{log.duration} min</span> : null}
               {log.notes && <span className="truncate max-w-[200px]">- {log.notes}</span>}
@@ -330,8 +309,7 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
                   if (ex.reps) parts.push(`${ex.reps}r`);
                   if (ex.sets) parts.push(`${ex.sets}s`);
                   return (
-                    <span key={slug} className="text-[10px] px-1.5 py-0.5 rounded-md font-mono"
-                      style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                    <span key={slug} className="text-[10px] px-1.5 py-0.5 rounded-md font-mono bg-surface-elevated text-content-secondary">
                       {slug.replace(/-/g, " ")}: {parts.join("x")}
                     </span>
                   );
@@ -341,13 +319,10 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
           </div>
         )}
       </div>
-      <motion.div
-        initial={false}
-        animate={{ height: expanded ? "auto" : 0, opacity: expanded ? 1 : 0 }}
-        transition={{ duration: 0.3 }}
-        className="overflow-hidden"
+      <div
+        hidden={!expanded}
+        className={`px-5 pb-5 pt-4 space-y-4 ${expanded ? "anim-fade-up" : ""}`}
       >
-        <div className="px-5 pb-5 pt-4 space-y-4">
           {showTimer && activeProtocol && (
             <RepTimer
               key={`${activeSlug ?? "session"}-${activeProtocol.upSeconds}-${activeProtocol.targetReps}`}
@@ -369,34 +344,34 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
           )}
           {detail.warmup && (
             <div>
-              <p className="text-xs font-semibold tracking-wide mb-1.5" style={{ color: "var(--text-muted)" }}>Warm-up</p>
-              <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{detail.warmup}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-content-secondary mb-1.5">Warm-up</p>
+              <p className="text-[15px] leading-[22px] text-content-secondary">{detail.warmup}</p>
             </div>
           )}
           <div>
-            <p className="text-xs font-semibold tracking-wide mb-1.5" style={{ color: "var(--text-muted)" }}>Instructions</p>
-            <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{detail.instructions}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-content-secondary mb-1.5">Instructions</p>
+            <p className="text-[15px] leading-[22px] text-content-secondary">{detail.instructions}</p>
           </div>
           {detail.keyPoints && detail.keyPoints.length > 0 && (
-            <div className="rounded-xl p-3 space-y-1.5" style={{ background: "var(--bg-elevated)" }}>
-              <p className="text-xs font-semibold tracking-wide" style={{ color: "var(--text-muted)" }}>Key Points</p>
+            <div className="rounded-xl p-3 space-y-1.5 bg-surface-elevated">
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-content-secondary">Key Points</p>
               {detail.keyPoints.map((point, i) => (
                 <div key={i} className="flex items-start gap-2">
-                  <span className="text-xs mt-0.5 shrink-0" style={{ color: "var(--text-secondary)" }}>-</span>
-                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{point}</p>
+                  <span className="text-xs mt-0.5 shrink-0 text-content-secondary">-</span>
+                  <p className="text-xs leading-relaxed text-content-secondary">{point}</p>
                 </div>
               ))}
             </div>
           )}
           {detail.exercises && detail.exercises.length > 0 && (
             <div>
-              <p className="text-xs font-semibold tracking-wide mb-1" style={{ color: "var(--text-muted)" }}>Exercises</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-content-secondary mb-1">Exercises</p>
               {parsedTimed.length > 0 && (
-                <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-xs mb-2 text-content-secondary">
                   {parsedTimed.length} timed exercises below. Hit play above to time them.
                 </p>
               )}
-              <div className="space-y-2">
+              <div className="space-y-2 anim-stagger">
                 {detail.exercises.map((ex, i) => {
                   const secMatch = ex.name.match(/\((\d+)(?:-\d+)?\s*s(?:ec)?\b/);
                   const minMatch = ex.name.match(/\((\d+)(?:-\d+)?\s*min\b/);
@@ -417,12 +392,11 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
                       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectExercise(slug); }
                     } : undefined}
                     aria-pressed={rowInteractive ? isActive : undefined}
-                    className={`flex items-start gap-3 rounded-xl p-3 transition-all ${rowInteractive ? "cursor-pointer" : ""}`}
+                    className={`anim-fade-up flex items-start gap-3 rounded-xl p-3 bg-surface-elevated transition-shadow ${rowInteractive ? "cursor-pointer pressable" : ""}`}
                     style={{
-                      background: "var(--bg-elevated)",
-                      outline: isActive ? "2px solid var(--accent)" : "none",
-                      outlineOffset: isActive ? "1px" : "0",
-                    }}
+                      boxShadow: isActive ? "0 0 0 2px var(--accent)" : undefined,
+                      "--stagger-i": i,
+                    } as React.CSSProperties}
                   >
                     {checkable ? (
                       <button
@@ -432,7 +406,7 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 transition-all"
                         style={{
                           background: done ? "var(--accent)" : "var(--border)",
-                          color: done ? "#fff" : "var(--text-secondary)",
+                          color: done ? "var(--accent-contrast)" : "var(--text-secondary)",
                         }}
                       >
                         {done ? <Icon name="check" size={13} strokeWidth={3.2} /> : i + 1}
@@ -443,7 +417,7 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold" style={{
+                        <p className="text-[17px] leading-[22px] font-semibold tracking-[-0.01em]" style={{
                           color: done ? "var(--text-muted)" : "var(--text-primary)",
                           textDecoration: done ? "line-through" : "none",
                         }}>{cleanName}</p>
@@ -451,8 +425,8 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-orange-500/15 text-orange-500 shrink-0">{duration}</span>
                         )}
                       </div>
-                      {ex.notes && <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{ex.notes}</p>}
-                      {ex.alternatives && <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>or {ex.alternatives.join(" · ")}</p>}
+                      {ex.notes && <p className="text-[15px] leading-[22px] mt-0.5 text-content-secondary">{ex.notes}</p>}
+                      {ex.alternatives && <p className="text-xs mt-0.5 text-content-muted">or {ex.alternatives.join(" · ")}</p>}
                       {(() => {
                         const equip = inferEquipment(ex);
                         if (equip.length === 0) return null;
@@ -476,13 +450,11 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
           )}
           <button
             onClick={onOpenLog}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.99]"
-            style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+            className="w-full h-11 rounded-button text-[13px] leading-4 font-semibold pressable bg-surface-elevated text-content-primary ring-1 ring-[var(--card-border)]"
           >
             Log workout
           </button>
-        </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 });

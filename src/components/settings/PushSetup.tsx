@@ -17,6 +17,9 @@ import type { PushPreferences } from "@/lib/webpush";
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
 
+const sectionLabel =
+  "text-[12px] leading-[16px] font-semibold tracking-[0.08em] uppercase text-content-secondary mb-3";
+
 async function fetchPrefs(): Promise<{ prefs: PushPreferences; subscribed: boolean; deviceCount: number } | null> {
   try {
     const res = await fetch("/api/push", {
@@ -157,8 +160,8 @@ export function PushSetup() {
 
   if (!loaded) {
     return (
-      <div className="rounded-xl p-4" style={{ background: "var(--bg-elevated)" }}>
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Loading notifications...</p>
+      <div className="rounded-card p-4 bg-surface-elevated">
+        <p className="text-[12px] leading-[16px] font-medium text-content-muted">Loading notifications...</p>
       </div>
     );
   }
@@ -166,10 +169,10 @@ export function PushSetup() {
   if (!supported || permission === "unsupported") {
     return (
       <div>
-        <p className="text-xs font-semibold tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>Notifications</p>
-        <div className="rounded-xl p-4" style={{ background: "var(--bg-elevated)" }}>
-          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Not supported on this device</p>
-          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+        <p className={sectionLabel}>Notifications</p>
+        <div className="rounded-card p-4 bg-surface-elevated">
+          <p className="text-sm font-semibold text-content-primary">Not supported on this device</p>
+          <p className="text-[12px] leading-[16px] font-medium mt-1 text-content-muted">
             Install the app to your home screen first (Share → Add to Home Screen on iOS), then enable notifications from there.
           </p>
         </div>
@@ -182,13 +185,13 @@ export function PushSetup() {
   if (needsInstall) {
     return (
       <div>
-        <p className="text-xs font-semibold tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>Notifications</p>
-        <div className="rounded-xl p-4" style={{ background: "var(--bg-elevated)" }}>
-          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Install to home screen first</p>
-          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+        <p className={sectionLabel}>Notifications</p>
+        <div className="rounded-card p-4 bg-surface-elevated">
+          <p className="text-sm font-semibold text-content-primary">Install to home screen first</p>
+          <p className="text-[12px] leading-[16px] font-medium mt-1 text-content-muted">
             Notifications on iOS require the app to live on your home screen.
           </p>
-          <ol className="text-xs mt-2 space-y-1 list-decimal list-inside" style={{ color: "var(--text-secondary)" }}>
+          <ol className="text-[12px] leading-[16px] font-medium mt-2 space-y-1 list-decimal list-inside text-content-secondary">
             <li>Tap the Share button in Safari</li>
             <li>Choose Add to Home Screen</li>
             <li>Open the app from your home screen and return here</li>
@@ -203,16 +206,16 @@ export function PushSetup() {
 
   return (
     <div>
-      <p className="text-xs font-semibold tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>Notifications</p>
+      <p className={sectionLabel}>Notifications</p>
       <div className="space-y-3">
         {/* Main toggle */}
-        <div className="rounded-xl p-4" style={{ background: "var(--bg-elevated)" }}>
+        <div className="rounded-card p-4 bg-surface-elevated">
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+              <p className="text-sm font-bold text-content-primary">
                 {enabled ? "Notifications on" : "Enable notifications"}
               </p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+              <p className="text-[12px] leading-[16px] font-medium mt-0.5 text-content-muted">
                 {enabled
                   ? `Active on ${deviceCount} device${deviceCount === 1 ? "" : "s"}. Daily reminders, completions, streaks.`
                   : blocked
@@ -222,20 +225,18 @@ export function PushSetup() {
             </div>
             {enabled ? (
               <button onClick={handleDisable} disabled={busy}
-                className="shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all hover:opacity-80 disabled:opacity-50"
-                style={{ background: "var(--bg-card)", color: "var(--text-secondary)" }}>
+                className="shrink-0 px-4 py-2 rounded-full text-[13px] leading-[16px] font-medium pressable hover:opacity-80 disabled:opacity-50 bg-surface-card text-content-secondary">
                 Turn off
               </button>
             ) : (
               <button onClick={handleEnable} disabled={busy || blocked || !swReady}
-                className="shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 disabled:opacity-50"
-                style={{ background: "var(--accent)", color: "white" }}>
+                className="shrink-0 px-4 py-2 rounded-full text-[13px] leading-[16px] font-medium pressable disabled:opacity-50 bg-accent text-accent-contrast">
                 {busy ? "..." : !swReady ? "Preparing" : "Enable"}
               </button>
             )}
           </div>
           {driftWarning && (
-            <p className="text-xs mt-2" style={{ color: "#eab308" }}>
+            <p className="text-[12px] leading-[16px] font-medium mt-2 text-warning anim-fade-up">
               Your previous subscription was lost by this browser. Tap Enable to reconnect.
             </p>
           )}
@@ -245,14 +246,13 @@ export function PushSetup() {
           <>
             {/* Test button */}
             <button onClick={handleTest} disabled={busy}
-              className="w-full py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-50"
-              style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+              className="w-full h-11 rounded-button text-[13px] leading-[16px] font-medium pressable hover:opacity-80 disabled:opacity-50 bg-surface-elevated text-content-secondary">
               {busy ? "Sending..." : "Send test notification"}
             </button>
 
             {/* Category toggles */}
             {prefs && (
-              <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--bg-elevated)" }}>
+              <div className="rounded-card p-4 space-y-3 bg-surface-elevated">
                 {([
                   { key: "reminders" as const, label: "Daily reminders", description: "Workout push at your chosen time" },
                   { key: "completions" as const, label: "Completion alerts", description: "Confirm workouts and weekly goals" },
@@ -262,13 +262,12 @@ export function PushSetup() {
                   return (
                     <div key={opt.key} className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{opt.label}</p>
-                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>{opt.description}</p>
+                        <p className="text-sm font-semibold text-content-primary">{opt.label}</p>
+                        <p className="text-[12px] leading-[16px] font-medium text-content-muted">{opt.description}</p>
                       </div>
                       <button onClick={() => togglePref(opt.key)}
                         role="switch" aria-checked={on} aria-label={opt.label}
-                        className={`shrink-0 w-12 h-7 rounded-full transition-all relative ${on ? "bg-green-500" : ""}`}
-                        style={{ background: on ? undefined : "var(--border)" }}>
+                        className={`shrink-0 w-12 h-7 rounded-full transition-colors relative pressable ${on ? "bg-accent" : "bg-border-active"}`}>
                         <div className={`w-5 h-5 rounded-full bg-white shadow-md absolute top-1 transition-all ${on ? "left-6" : "left-1"}`} />
                       </button>
                     </div>
@@ -279,9 +278,9 @@ export function PushSetup() {
 
             {/* Per-day times */}
             {prefs && prefs.reminders && (
-              <div className="rounded-xl p-4" style={{ background: "var(--bg-elevated)" }}>
-                <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Reminder times ({prefs.timezone || "local"})</p>
-                <p className="text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>Delivered within 15 minutes of your chosen time.</p>
+              <div className="rounded-card p-4 bg-surface-elevated">
+                <p className="text-[12px] leading-[16px] font-semibold text-content-secondary">Reminder times ({prefs.timezone || "local"})</p>
+                <p className="text-[11px] mb-2 text-content-muted">Delivered within 15 minutes of your chosen time.</p>
                 <div className="space-y-2">
                   {DAYS.map((day) => {
                     const plan = weeklyPlan.find((p) => p.day === day);
@@ -295,14 +294,14 @@ export function PushSetup() {
                     return (
                       <div key={day} className="flex items-center justify-between gap-3 py-1">
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{day}</div>
-                          <div className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{mainSessions}</div>
+                          <div className="text-sm font-medium text-content-primary">{day}</div>
+                          <div className="text-[12px] leading-[16px] font-medium truncate text-content-muted">{mainSessions}</div>
                         </div>
                         <input type="time" step={900} value={prefs.times[day] || "07:00"}
                           onChange={(e) => updateTime(day, e.target.value)}
                           aria-label={`Reminder time for ${day}`}
-                          className="shrink-0 text-sm rounded-lg px-2 py-1 border outline-none"
-                          style={{ background: "var(--bg-card)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+                          className="input-field shrink-0 text-sm rounded-button h-11 px-3 border outline-none bg-surface-input text-content-primary"
+                          style={{ borderColor: "var(--card-border)" }} />
                       </div>
                     );
                   })}
@@ -313,8 +312,8 @@ export function PushSetup() {
         )}
 
         {status && (
-          <p className="text-xs text-center py-1" style={{
-            color: status.includes("enabled") || status.includes("sent") ? "#22c55e" : "#ef4444"
+          <p className="text-[12px] leading-[16px] font-medium text-center py-1 anim-fade-up" style={{
+            color: status.includes("enabled") || status.includes("sent") ? "var(--accent)" : "var(--danger)"
           }}>
             {status}
           </p>

@@ -1,7 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { fadeUp, spring } from "@/lib/motion";
 import type { GradeResult } from "@/lib/biomarkerData";
 import type { HealthInsightsData, HealthInsight } from "@/hooks/useBiomarkers";
 
@@ -35,17 +33,7 @@ export function HealthScoreCard({
       .slice(0, 2) ?? [];
 
   return (
-    <motion.div
-      variants={fadeUp}
-      className="relative rounded-2xl overflow-hidden"
-      style={{
-        background: "var(--glass-bg)",
-        backdropFilter: "blur(16px)",
-        WebkitBackdropFilter: "blur(16px)",
-        border: "1px solid var(--glass-border)",
-        boxShadow: "var(--card-shadow)",
-      }}
-    >
+    <div className="anim-fade-up glass-card rounded-card relative overflow-hidden">
       {/* Gradient overlay */}
       <div
         className="absolute inset-x-0 top-0 h-24 pointer-events-none"
@@ -77,7 +65,7 @@ export function HealthScoreCard({
                 strokeWidth="5"
                 strokeOpacity={0.5}
               />
-              <motion.circle
+              <circle
                 cx="50"
                 cy="50"
                 r="42"
@@ -86,17 +74,16 @@ export function HealthScoreCard({
                 strokeWidth="5"
                 strokeLinecap="round"
                 strokeDasharray={`${progress} ${circumference}`}
-                initial={{ strokeDasharray: `0 ${circumference}` }}
-                animate={{ strokeDasharray: `${progress} ${circumference}` }}
-                transition={spring.snappy}
                 style={{
                   filter: `drop-shadow(0 0 6px ${grade.color}66)`,
+                  transition:
+                    "stroke-dasharray var(--dur-slow) var(--ease-out-quart)",
                 }}
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span
-                className="text-2xl font-black tabular-nums leading-none"
+                className="font-display text-2xl font-bold tabular-nums leading-none"
                 style={{ color: grade.color }}
               >
                 {grade.score}
@@ -113,7 +100,7 @@ export function HealthScoreCard({
           {/* Summary text */}
           <div className="flex-1 min-w-0">
             <p
-              className="text-base font-black tracking-tight"
+              className="font-display text-xl font-bold"
               style={{ color: "var(--text-primary)" }}
             >
               Health Score
@@ -152,14 +139,14 @@ export function HealthScoreCard({
               const isDown = t.direction === "declining";
               const icon = isUp ? "+" : isDown ? "-" : "=";
               const color = isUp
-                ? "#22c55e"
+                ? "var(--accent)"
                 : isDown
-                  ? "#ef4444"
+                  ? "var(--danger)"
                   : "var(--text-muted)";
               const bg = isUp
-                ? "linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%)"
+                ? "linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent) 0%, color-mix(in srgb, var(--accent) 4%, transparent) 100%)"
                 : isDown
-                  ? "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(239,68,68,0.04) 100%)"
+                  ? "linear-gradient(135deg, color-mix(in srgb, var(--danger) 12%, transparent) 0%, color-mix(in srgb, var(--danger) 4%, transparent) 100%)"
                   : "var(--bg-elevated)";
 
               return (
@@ -181,7 +168,7 @@ export function HealthScoreCard({
             {onViewProtocol && goalCount ? (
               <button
                 onClick={onViewProtocol}
-                className="w-full text-center py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99]"
+                className="pressable w-full text-center py-2.5 rounded-button"
                 style={{
                   background: `linear-gradient(135deg, ${grade.color}20 0%, ${grade.color}08 100%)`,
                   color: grade.color,
@@ -201,7 +188,7 @@ export function HealthScoreCard({
             ) : onViewInsights ? (
               <button
                 onClick={onViewInsights}
-                className="w-full text-center py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99]"
+                className="pressable w-full text-center py-2.5 rounded-button"
                 style={{
                   background:
                     "linear-gradient(135deg, var(--accent-glow) 0%, transparent 100%)",
@@ -217,7 +204,7 @@ export function HealthScoreCard({
           </div>
         ) : null}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -230,20 +217,20 @@ function InsightPill({ insight }: { insight: HealthInsight }) {
   const isPositive = insight.type === "positive";
 
   const dotColor = isConcern
-    ? "#ef4444"
+    ? "var(--danger)"
     : isPositive
-      ? "#22c55e"
+      ? "var(--accent)"
       : "var(--text-muted)";
 
   const pillBg = isConcern
-    ? "linear-gradient(135deg, rgba(239,68,68,0.10) 0%, rgba(239,68,68,0.03) 100%)"
+    ? "linear-gradient(135deg, color-mix(in srgb, var(--danger) 10%, transparent) 0%, color-mix(in srgb, var(--danger) 3%, transparent) 100%)"
     : isPositive
-      ? "linear-gradient(135deg, rgba(34,197,94,0.10) 0%, rgba(34,197,94,0.03) 100%)"
+      ? "linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent) 0%, color-mix(in srgb, var(--accent) 3%, transparent) 100%)"
       : "var(--bg-elevated)";
 
   return (
     <div
-      className="rounded-xl px-3 py-2 flex items-center gap-2.5"
+      className="rounded-button px-3 py-2 flex items-center gap-2.5"
       style={{ background: pillBg }}
     >
       <span

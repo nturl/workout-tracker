@@ -27,7 +27,10 @@ module.exports = {
         accent: {
           DEFAULT: "var(--accent)",
           light: "var(--accent-light)",
+          contrast: "var(--accent-contrast)",
         },
+        danger: "var(--danger)",
+        warning: "var(--warning)",
       },
       boxShadow: {
         xs: "var(--shadow-xs)",
@@ -37,8 +40,8 @@ module.exports = {
         lg: "var(--shadow-lg)",
       },
       borderRadius: {
-        card: "1rem",
-        sheet: "1.5rem",
+        card: "1.25rem",
+        sheet: "1.75rem",
         button: "0.75rem",
       },
       spacing: {

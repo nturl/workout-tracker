@@ -1,13 +1,12 @@
 "use client";
 
-import { useMemo, useCallback, useEffect, useState } from "react";
+import { useMemo, useCallback, useEffect, useState, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { weeklyPlan, type WorkoutSession } from "@/lib/workoutData";
 import { weekKey, weekKeyForOffset, sessionKey, getTodayDayName, getWeekProgress, calculateStreak, getBestStreak, calculateDailyHabitStreak, getBestDailyHabitStreak, getLastNDays, todayKey, isSessionScheduled } from "@/lib/helpers";
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
 import { SyncIndicator } from "@/components/ui/SyncIndicator";
-import { motion, AnimatePresence } from "framer-motion";
-import { staggerContainer } from "@/lib/motion";
+import { Icon } from "@/components/ui/Icon";
 import { SessionCard } from "@/components/dashboard/SessionCard";
 import { ProgrammingNotes } from "@/components/dashboard/ProgrammingNotes";
 import { LogModal } from "@/components/tracking/LogModal";
@@ -19,6 +18,10 @@ import { RecoveryBanner } from "@/components/recovery/RecoveryBanner";
 import { SunBanner } from "@/components/dashboard/SunBanner";
 import { useOuraStatus } from "@/hooks/useConnectedAccounts";
 import { notifySessionComplete, notifyWeekComplete, maybeNotifyStreakMilestone } from "@/lib/pushNotify";
+
+// Same cap the Settings habit editor (HabitManager) enforces — the store
+// itself doesn't reject over-limit adds, so both UIs guard it client-side.
+const MAX_HABITS = 30;
 
 interface WorkoutsTabProps {
   syncStatus: "idle" | "syncing" | "error";
@@ -40,10 +43,73 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
   const habitData = useWorkoutStore((s) => s.habits);
   const habitDefs = useWorkoutStore((s) => s.habitDefs);
   const toggleHabit = useWorkoutStore((s) => s.toggleHabit);
+  const addHabit = useWorkoutStore((s) => s.addHabit);
+  const renameHabit = useWorkoutStore((s) => s.renameHabit);
+  const removeHabit = useWorkoutStore((s) => s.removeHabit);
+  const moveHabit = useWorkoutStore((s) => s.moveHabit);
 
   const [logModal, setLogModal] = useState<{ session: WorkoutSession; key: string } | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [expandedHabit, setExpandedHabit] = useState<string | null>(null);
+
+  // Flagship inline habit customization (mirrors HabitManager's store-action
+  // pattern: mutate the store, then syncNow — no duplicated habit state).
+  const [habitsEditMode, setHabitsEditMode] = useState(false);
+  const [addingHabit, setAddingHabit] = useState(false);
+  const [newHabitLabel, setNewHabitLabel] = useState("");
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const [draftHabitLabel, setDraftHabitLabel] = useState("");
+  const [confirmDeleteHabitId, setConfirmDeleteHabitId] = useState<string | null>(null);
+  const addHabitInputRef = useRef<HTMLInputElement>(null);
+  const atHabitLimit = habitDefs.length >= MAX_HABITS;
+  const canDeleteHabit = habitDefs.length > 1;
+
+  const startAddHabit = () => {
+    setAddingHabit(true);
+    setNewHabitLabel("");
+  };
+
+  const commitAddHabit = () => {
+    const trimmed = newHabitLabel.trim();
+    if (!trimmed || atHabitLimit) return;
+    addHabit(trimmed);
+    syncNow();
+    setNewHabitLabel("");
+    setAddingHabit(false);
+  };
+
+  const startRenameHabit = (id: string, label: string) => {
+    setConfirmDeleteHabitId(null);
+    setEditingHabitId(id);
+    setDraftHabitLabel(label);
+  };
+
+  const commitRenameHabit = () => {
+    if (!editingHabitId) return;
+    const trimmed = draftHabitLabel.trim();
+    if (trimmed) {
+      renameHabit(editingHabitId, trimmed);
+      syncNow();
+    }
+    setEditingHabitId(null);
+    setDraftHabitLabel("");
+  };
+
+  const cancelRenameHabit = () => {
+    setEditingHabitId(null);
+    setDraftHabitLabel("");
+  };
+
+  const confirmDeleteHabit = (id: string) => {
+    removeHabit(id);
+    syncNow();
+    setConfirmDeleteHabitId(null);
+  };
+
+  const moveHabitAndSync = (id: string, direction: "up" | "down") => {
+    moveHabit(id, direction);
+    syncNow();
+  };
 
   const wk = weekOffset === 0 ? weekKey(new Date()) : weekKeyForOffset(weekOffset);
   const todayName = getTodayDayName();
@@ -86,6 +152,10 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
     if (!mounted || streak === 0) return;
     maybeNotifyStreakMilestone(streak);
   }, [mounted, streak]);
+
+  useEffect(() => {
+    if (addingHabit) addHabitInputRef.current?.focus();
+  }, [addingHabit]);
 
   const activePlan = weeklyPlan.find((d) => d.day === selectedDay);
 
@@ -146,13 +216,13 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
                 <SunBanner />
                 <RecoveryBanner data={recoveryData} onClick={onOpenRecovery} />
                 {!ouraStatus.isLoading && !ouraStatus.data?.connected && !recoveryData[todayKey()]?.oura?.readinessScore && (
-                  <div className="mt-3 rounded-2xl p-4 flex items-center justify-between" style={{ background: "var(--bg-card)" }}>
+                  <div className="glass-card mt-3 rounded-card p-4 flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Connect Oura Ring</p>
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>Auto-sync recovery data</p>
+                      <p className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>Connect Oura Ring</p>
+                      <p className="text-[12px] font-medium" style={{ color: "var(--text-muted)" }}>Auto-sync recovery data</p>
                     </div>
-                    <a href="/api/oauth/oura/authorize" className="px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105"
-                      style={{ background: "var(--accent)", color: "#fff" }}>
+                    <a href="/api/oauth/oura/authorize" className="pressable px-4 py-2 rounded-full text-[13px] font-semibold"
+                      style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}>
                       Connect
                     </a>
                   </div>
@@ -160,56 +230,207 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
               </div>
             )}
 
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={selectedDay}
-                className="space-y-5"
-                variants={staggerContainer}
-                initial="hidden"
-                animate="visible"
-              >
-                {activePlan.sessions.filter((s) => isSessionScheduled(s, wk)).map((session, si) => {
-                  const key = sessionKey(wk, activePlan.day, session);
-                  return (
-                    <SessionCard key={si} session={session} level={level} completed={!!completions[key]}
+            <div key={selectedDay} className="anim-stagger space-y-5">
+              {activePlan.sessions.filter((s) => isSessionScheduled(s, wk)).map((session, si) => {
+                const key = sessionKey(wk, activePlan.day, session);
+                return (
+                  <div key={si} className="anim-fade-up" style={{ "--stagger-i": si } as React.CSSProperties}>
+                    <SessionCard session={session} level={level} completed={!!completions[key]}
                       onToggle={() => handleToggle(activePlan.day, session)} logKey={key} logs={logs}
                       onOpenLog={() => setLogModal({ session, key })} onSaveLog={handleSaveLog} showTimer={true} />
-                  );
-                })}
-              </motion.div>
-            </AnimatePresence>
+                  </div>
+                );
+              })}
+            </div>
           </>
         )}
 
         <div className="mt-8">
-          <h3 className="text-xs font-display font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-muted)" }}>Daily Habits</h3>
-          <div className="space-y-1.5">
-            {habits.map((h) => (
-              <HabitCard
-                key={h.key}
-                label={h.label}
-                doneToday={h.doneToday}
-                streak={h.streak}
-                bestStreak={h.bestStreak}
-                expanded={expandedHabit === h.key}
-                recentDays={h.recentDays}
-                onToggleToday={() => {
-                  h.toggle(today);
-                  syncNow();
-                }}
-                onToggleDate={(date) => {
-                  h.toggle(date);
-                  syncNow();
-                }}
-                onExpandToggle={() => setExpandedHabit(expandedHabit === h.key ? null : h.key)}
-              />
-            ))}
+          <div className="flex items-center mb-3">
+            <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--text-secondary)" }}>Daily Habits</h3>
+            <button
+              type="button"
+              onClick={() => {
+                setHabitsEditMode((v) => !v);
+                setConfirmDeleteHabitId(null);
+                setEditingHabitId(null);
+              }}
+              className="pressable ml-auto text-[13px] font-semibold"
+              style={{ color: "var(--accent)" }}
+            >
+              {habitsEditMode ? "Done" : "Edit"}
+            </button>
+          </div>
+          <div className="space-y-1.5 anim-stagger">
+            {habits.map((h, i) =>
+              habitsEditMode ? (
+                <div
+                  key={h.key}
+                  className="anim-fade-up glass-card flex items-center gap-2 rounded-card px-3 py-2"
+                  style={{ "--stagger-i": i } as React.CSSProperties}
+                >
+                  <div className="flex flex-col -my-1">
+                    <button
+                      type="button"
+                      onClick={() => moveHabitAndSync(h.key, "up")}
+                      disabled={i === 0}
+                      aria-label={`Move ${h.label} up`}
+                      className="pressable w-6 h-4 flex items-center justify-center disabled:opacity-20"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      <Icon name="arrow-up" size={13} strokeWidth={2.4} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveHabitAndSync(h.key, "down")}
+                      disabled={i === habits.length - 1}
+                      aria-label={`Move ${h.label} down`}
+                      className="pressable w-6 h-4 flex items-center justify-center disabled:opacity-20"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      <Icon name="arrow-down" size={13} strokeWidth={2.4} />
+                    </button>
+                  </div>
+
+                  {editingHabitId === h.key ? (
+                    <input
+                      autoFocus
+                      value={draftHabitLabel}
+                      onChange={(e) => setDraftHabitLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitRenameHabit();
+                        if (e.key === "Escape") cancelRenameHabit();
+                      }}
+                      maxLength={100}
+                      aria-label="Habit name"
+                      className="input-field flex-1 min-w-0 bg-transparent text-[15px] font-medium outline-none border-b"
+                      style={{ color: "var(--text-primary)", borderColor: "var(--accent)" }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => startRenameHabit(h.key, h.label)}
+                      aria-label={`Rename ${h.label}`}
+                      className="flex-1 min-w-0 text-left truncate text-[15px] font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {h.label}
+                    </button>
+                  )}
+
+                  {editingHabitId === h.key ? (
+                    <>
+                      <button type="button" onClick={commitRenameHabit} aria-label="Save name"
+                        className="pressable shrink-0 w-8 h-8 rounded-button flex items-center justify-center"
+                        style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}>
+                        <Icon name="check" size={15} strokeWidth={2.6} />
+                      </button>
+                      <button type="button" onClick={cancelRenameHabit} aria-label="Cancel"
+                        className="pressable shrink-0 w-8 h-8 rounded-button flex items-center justify-center"
+                        style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                        <Icon name="close" size={14} strokeWidth={2.4} />
+                      </button>
+                    </>
+                  ) : confirmDeleteHabitId === h.key ? (
+                    <>
+                      <button type="button" onClick={() => confirmDeleteHabit(h.key)} aria-label={`Confirm remove ${h.label}`}
+                        onKeyDown={(e) => { if (e.key === "Escape") setConfirmDeleteHabitId(null); }}
+                        className="pressable shrink-0 h-8 px-3 rounded-button text-[13px] font-semibold"
+                        style={{ background: "var(--danger)", color: "#fff" }}>
+                        Remove
+                      </button>
+                      <button type="button" onClick={() => setConfirmDeleteHabitId(null)} aria-label="Cancel"
+                        className="pressable shrink-0 w-8 h-8 rounded-button flex items-center justify-center"
+                        style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                        <Icon name="close" size={14} strokeWidth={2.4} />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteHabitId(h.key)}
+                      disabled={!canDeleteHabit}
+                      aria-label={canDeleteHabit ? `Remove ${h.label}` : "Keep at least one habit"}
+                      title={canDeleteHabit ? undefined : "Keep at least one habit"}
+                      className="pressable shrink-0 w-8 h-8 rounded-button flex items-center justify-center disabled:opacity-30"
+                      style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+                    >
+                      <Icon name="trash" size={14} strokeWidth={2.2} />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div key={h.key} className="anim-fade-up" style={{ "--stagger-i": i } as React.CSSProperties}>
+                  <HabitCard
+                    label={h.label}
+                    doneToday={h.doneToday}
+                    streak={h.streak}
+                    bestStreak={h.bestStreak}
+                    expanded={expandedHabit === h.key}
+                    recentDays={h.recentDays}
+                    onToggleToday={() => {
+                      h.toggle(today);
+                      syncNow();
+                    }}
+                    onToggleDate={(date) => {
+                      h.toggle(date);
+                      syncNow();
+                    }}
+                    onExpandToggle={() => setExpandedHabit(expandedHabit === h.key ? null : h.key)}
+                  />
+                </div>
+              )
+            )}
+
+            {/* Persistent add-habit ghost row — one tap reveals the inline input. */}
+            {addingHabit ? (
+              <div className="glass-card flex items-center gap-2 rounded-card px-3 py-2">
+                <input
+                  ref={addHabitInputRef}
+                  value={newHabitLabel}
+                  onChange={(e) => setNewHabitLabel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitAddHabit();
+                    if (e.key === "Escape") { setAddingHabit(false); setNewHabitLabel(""); }
+                  }}
+                  onBlur={() => { if (!newHabitLabel.trim()) setAddingHabit(false); }}
+                  placeholder={atHabitLimit ? "Habit limit reached" : "New habit…"}
+                  disabled={atHabitLimit}
+                  maxLength={100}
+                  aria-label="New habit name"
+                  className="input-field flex-1 min-w-0 bg-transparent text-[15px] font-medium outline-none disabled:opacity-50"
+                  style={{ color: "var(--text-primary)" }}
+                />
+                <button
+                  type="button"
+                  onClick={commitAddHabit}
+                  disabled={!newHabitLabel.trim() || atHabitLimit}
+                  aria-label="Add habit"
+                  className="pressable shrink-0 w-8 h-8 rounded-button flex items-center justify-center disabled:opacity-30"
+                  style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}
+                >
+                  <Icon name="check" size={15} strokeWidth={2.6} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={startAddHabit}
+                disabled={atHabitLimit}
+                aria-label="Add habit"
+                className="pressable w-full flex items-center gap-2 rounded-card px-3 py-2.5 text-[13px] font-semibold disabled:opacity-40"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <Icon name="plus" size={14} strokeWidth={2.6} />
+                {atHabitLimit ? "Habit limit reached" : "Add habit"}
+              </button>
+            )}
           </div>
         </div>
 
         <div className="mt-8">
-          <h3 className="text-xs font-display font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-muted)" }}>8-Week Momentum</h3>
-          <div className="glass-card rounded-2xl p-5">
+          <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] mb-3" style={{ color: "var(--text-secondary)" }}>8-Week Momentum</h3>
+          <div className="glass-card rounded-card p-5">
             <MomentumChart completions={completions} />
           </div>
         </div>

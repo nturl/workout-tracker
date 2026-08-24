@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/ui/Icon";
 
 export type TabId = "workouts" | "labs" | "recovery" | "settings";
@@ -47,25 +46,25 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
               aria-selected={isActive}
               aria-label={tab.label}
               onClick={() => onTabChange(tab.id)}
-              className="flex flex-col items-center justify-center flex-1 h-full relative transition-all"
+              className="flex flex-col items-center justify-center flex-1 h-full relative pressable"
               style={{ WebkitTapHighlightColor: "transparent" }}
             >
               {isActive && (
-                <motion.div
-                  layoutId="tab-indicator"
-                  className="absolute -top-px left-3 right-3 h-0.5 rounded-full"
+                <span
+                  className="absolute -top-px left-3 right-3 h-0.5 rounded-full anim-scale-in"
                   style={{ background: "var(--accent)", boxShadow: "0 0 8px var(--accent-glow)" }}
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  aria-hidden="true"
                 />
               )}
-              <motion.span
-                className="leading-none"
-                animate={{ scale: isActive ? 1.12 : 1, y: isActive ? -1 : 0 }}
-                transition={{ type: "spring", stiffness: 500, damping: 28 }}
-                style={{ color: isActive ? "var(--accent)" : "var(--text-muted)" }}
+              <span
+                className="leading-none transition-transform duration-150"
+                style={{
+                  color: isActive ? "var(--accent)" : "var(--text-muted)",
+                  transform: isActive ? "translateY(-1px) scale(1.12)" : "translateY(0) scale(1)",
+                }}
               >
                 <Icon name={tab.icon} size={21} strokeWidth={isActive ? 2.2 : 1.9} />
-              </motion.span>
+              </span>
               <span
                 className="text-[10px] font-semibold mt-1 transition-colors"
                 style={{ color: isActive ? "var(--accent)" : "var(--text-muted)" }}

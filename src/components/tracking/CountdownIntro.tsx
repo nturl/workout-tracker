@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   playCountdownIntro,
   vibrateRep,
@@ -68,54 +67,42 @@ export function CountdownIntro({ seconds = 6, onComplete, onSkip }: CountdownInt
 
   const showGo = count <= 0;
   const displayValue = showGo ? "GO" : String(count);
-  const color = showGo ? "#22c55e" : count === 1 ? "#f59e0b" : "#60a5fa";
+  const color = showGo ? "var(--accent)" : count === 1 ? "var(--warning)" : "var(--accent-light)";
 
   return (
-    <AnimatePresence>
-      <motion.button
-        type="button"
-        onClick={handleSkip}
-        aria-label="Skip countdown"
-        className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md cursor-pointer select-none"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
-      >
-        <motion.div
-          key={displayValue}
-          initial={{ scale: 0.4, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 1.6, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 280, damping: 18 }}
-          className="flex flex-col items-center"
+    <button
+      type="button"
+      onClick={handleSkip}
+      aria-label="Skip countdown"
+      className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md cursor-pointer select-none anim-fade-up"
+    >
+      {/* Key-based remount: each digit swap replays the scale-in animation. */}
+      <div key={displayValue} className="anim-scale-in relative flex flex-col items-center">
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
+          style={{
+            width: showGo ? 360 : 260,
+            height: showGo ? 360 : 260,
+            border: `3px solid ${color}`,
+            opacity: 0.25,
+            filter: "blur(1px)",
+          }}
+        />
+        <span
+          className="font-display font-bold tabular-nums leading-none"
+          style={{
+            fontSize: showGo ? "10rem" : "14rem",
+            color,
+            textShadow: `0 0 60px color-mix(in srgb, ${color} 50%, transparent)`,
+            letterSpacing: "-0.05em",
+          }}
         >
-          <div
-            className="absolute rounded-full"
-            style={{
-              width: showGo ? 360 : 260,
-              height: showGo ? 360 : 260,
-              border: `3px solid ${color}`,
-              opacity: 0.25,
-              filter: "blur(1px)",
-            }}
-          />
-          <span
-            className="font-display font-bold tabular-nums leading-none"
-            style={{
-              fontSize: showGo ? "10rem" : "14rem",
-              color,
-              textShadow: `0 0 60px ${color}80`,
-              letterSpacing: "-0.05em",
-            }}
-          >
-            {displayValue}
-          </span>
-        </motion.div>
-        <span className="absolute bottom-16 text-sm font-medium text-white/60 tracking-wide">
-          Tap to skip
+          {displayValue}
         </span>
-      </motion.button>
-    </AnimatePresence>
+      </div>
+      <span className="absolute bottom-16 text-sm font-medium text-white/60 tracking-wide">
+        Tap to skip
+      </span>
+    </button>
   );
 }

@@ -33,21 +33,21 @@ export function SunBanner() {
   const pct = Math.min(100, (elapsed / totalDay) * 100);
 
   return (
-    <div className="rounded-2xl p-4 glass shadow-card" style={{ border: "1px solid var(--glass-border)", boxShadow: "var(--card-shadow), var(--inset-glow)" }}>
+    <div className="rounded-card p-4 bg-surface-elevated anim-fade-up">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-lg">{timeRec.icon}</span>
           <div>
-            <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{timeRec.label}</p>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>{timeRec.detail}</p>
+            <p className="text-[15px] leading-[22px] font-semibold text-content-primary">{timeRec.label}</p>
+            <p className="text-xs font-medium leading-4 text-content-muted">{timeRec.detail}</p>
           </div>
         </div>
       </div>
       <div className="flex items-center gap-3 mt-2">
-        <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs font-medium leading-4 tabular-nums text-content-muted">
           🌅 {formatSunTime(sunTimes.sunrise)}
         </span>
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden relative" style={{ background: "var(--bg-elevated)" }}>
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden relative bg-surface-base">
           <div
             className="h-full rounded-full transition-all duration-1000"
             style={{
@@ -58,7 +58,7 @@ export function SunBanner() {
             }}
           />
         </div>
-        <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs font-medium leading-4 tabular-nums text-content-muted">
           🌇 {formatSunTime(sunTimes.sunset)}
         </span>
       </div>

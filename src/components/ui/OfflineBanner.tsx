@@ -19,7 +19,10 @@ export function OfflineBanner() {
   if (online) return null;
 
   return (
-    <div className="px-4 py-2.5 text-center text-xs font-medium" style={{ background: "#fef3c7", color: "#92400e" }}>
+    <div
+      className="px-4 py-2.5 text-center text-xs font-medium"
+      style={{ background: "color-mix(in srgb, var(--warning) 18%, transparent)", color: "var(--warning)" }}
+    >
       You&apos;re offline - changes will sync when you&apos;re back online
     </div>
   );

@@ -9,14 +9,13 @@ export function MetricInput({ label, value, onChange, unit, placeholder, min, ma
   const id = `metric-${label.replace(/\s+/g, "-").toLowerCase()}-${nextId++}`;
   return (
     <div className="flex items-center justify-between py-2">
-      <label htmlFor={id} className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>{label}</label>
+      <label htmlFor={id} className="text-sm font-medium text-content-secondary">{label}</label>
       <div className="flex items-center gap-1.5">
         <input id={id} type="number" value={value ?? ""}
           onChange={(e) => onChange(e.target.value ? Number(e.target.value) : undefined)}
           placeholder={placeholder || "-"} min={min} max={max} aria-label={label}
-          className="flex-1 min-w-0 max-w-24 text-right px-2 py-1.5 rounded-lg border text-sm font-mono outline-none transition-all inline-touch"
-          style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
-        {unit && <span className="text-xs w-8" style={{ color: "var(--text-muted)" }}>{unit}</span>}
+          className="input-field flex-1 min-w-0 max-w-24 h-11 text-right px-3 rounded-button border border-[var(--card-border)] text-sm tabular-nums outline-none transition-all inline-touch bg-surface-input text-content-primary" />
+        {unit && <span className="text-xs w-8 text-content-muted">{unit}</span>}
       </div>
     </div>
   );
@@ -28,12 +27,11 @@ export function TextMetricInput({ label, value, onChange, placeholder }: {
   const id = `text-metric-${label.replace(/\s+/g, "-").toLowerCase()}-${nextId++}`;
   return (
     <div className="flex items-center justify-between py-2">
-      <label htmlFor={id} className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>{label}</label>
+      <label htmlFor={id} className="text-sm font-medium text-content-secondary">{label}</label>
       <input id={id} type="text" value={value ?? ""}
         onChange={(e) => onChange(e.target.value || undefined)}
         placeholder={placeholder || "-"} aria-label={label}
-        className="flex-1 min-w-0 max-w-24 text-right px-2 py-1.5 rounded-lg border text-sm font-mono outline-none transition-all inline-touch"
-        style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)" }} />
+        className="input-field flex-1 min-w-0 max-w-24 h-11 text-right px-3 rounded-button border border-[var(--card-border)] text-sm tabular-nums outline-none transition-all inline-touch bg-surface-input text-content-primary" />
     </div>
   );
 }
@@ -44,12 +42,11 @@ export function SelectMetricInput({ label, value, onChange, options }: {
   const id = `select-metric-${label.replace(/\s+/g, "-").toLowerCase()}-${nextId++}`;
   return (
     <div className="flex items-center justify-between py-2">
-      <label htmlFor={id} className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>{label}</label>
+      <label htmlFor={id} className="text-sm font-medium text-content-secondary">{label}</label>
       <select id={id} value={value ?? ""}
         onChange={(e) => onChange(e.target.value || undefined)}
         aria-label={label}
-        className="text-right px-2 py-1.5 rounded-lg border text-sm outline-none transition-all appearance-none inline-touch"
-        style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)" }}>
+        className="input-field h-11 text-right px-3 rounded-button border border-[var(--card-border)] text-sm outline-none transition-all appearance-none inline-touch bg-surface-input text-content-primary">
         <option value="">-</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
