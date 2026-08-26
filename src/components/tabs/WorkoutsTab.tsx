@@ -43,6 +43,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
   const habitData = useWorkoutStore((s) => s.habits);
   const habitDefs = useWorkoutStore((s) => s.habitDefs);
   const toggleHabit = useWorkoutStore((s) => s.toggleHabit);
+  const setHabit = useWorkoutStore((s) => s.setHabit);
   const addHabit = useWorkoutStore((s) => s.addHabit);
   const renameHabit = useWorkoutStore((s) => s.renameHabit);
   const removeHabit = useWorkoutStore((s) => s.removeHabit);
@@ -125,14 +126,15 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
       return {
         key: id,
         label,
-        doneToday: !!map[today],
+        statusToday: map[today],
         streak: calculateDailyHabitStreak(map),
         bestStreak: getBestDailyHabitStreak(map),
-        recentDays: last7.map((d) => ({ ...d, logged: !!map[d.key] })),
+        recentDays: last7.map((d) => ({ ...d, logged: map[d.key] })),
         toggle: (date: string) => toggleHabit(id, date),
+        setToday: (done: boolean) => setHabit(id, today, done),
       };
     });
-  }, [mounted, today, habitData, toggleHabit, habitDefs]);
+  }, [mounted, today, habitData, toggleHabit, setHabit, habitDefs]);
   const { total: weekTotal, done: weekDone } = useMemo(() => getWeekProgress(completions, wk), [completions, wk]);
   const ouraStatus = useOuraStatus();
 
@@ -363,13 +365,13 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
                 <div key={h.key} className="anim-fade-up" style={{ "--stagger-i": i } as React.CSSProperties}>
                   <HabitCard
                     label={h.label}
-                    doneToday={h.doneToday}
+                    statusToday={h.statusToday}
                     streak={h.streak}
                     bestStreak={h.bestStreak}
                     expanded={expandedHabit === h.key}
                     recentDays={h.recentDays}
-                    onToggleToday={() => {
-                      h.toggle(today);
+                    onSetToday={(done) => {
+                      h.setToday(done);
                       syncNow();
                     }}
                     onToggleDate={(date) => {

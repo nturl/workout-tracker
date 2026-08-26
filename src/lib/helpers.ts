@@ -123,8 +123,9 @@ export function calculateDailyHabitStreak(habit: DailyHabitRecord): number {
     d.setDate(today.getDate() - i);
     const key = dateKey(d);
     if (habit[key]) streak++;
-    else if (i > 0) break;
-    // i === 0 and not checked yet: don't break the prior streak.
+    else if (i > 0 || habit[key] === false) break;
+    // i === 0 and undefined (not logged yet): don't break the prior streak.
+    // i === 0 and explicitly false (marked missed): break immediately.
   }
   return streak;
 }

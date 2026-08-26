@@ -187,6 +187,7 @@ interface WorkoutState {
   setSelectedDay: (day: string) => void;
   setMounted: (mounted: boolean) => void;
   toggleHabit: (habitId: string, date: string) => void;
+  setHabit: (habitId: string, date: string, done: boolean) => void;
 
   // Habit-list management (Settings)
   addHabit: (label: string) => void;
@@ -297,6 +298,14 @@ export const useWorkoutStore = create<WorkoutState>()(
           habits: {
             ...state.habits,
             [habitId]: { ...(state.habits[habitId] || {}), [date]: !state.habits[habitId]?.[date] },
+          },
+        })),
+
+      setHabit: (habitId, date, done) =>
+        set((state) => ({
+          habits: {
+            ...state.habits,
+            [habitId]: { ...(state.habits[habitId] || {}), [date]: done },
           },
         })),
 

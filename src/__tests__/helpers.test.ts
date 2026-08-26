@@ -11,7 +11,15 @@ import {
   DAYS,
   isBiWeeklyOn,
   isSessionScheduled,
+  calculateDailyHabitStreak,
 } from "@/lib/helpers";
+import type { DailyHabitRecord } from "@/types/workout";
+
+function daysAgoKey(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 import { weeklyPlan, type WorkoutSession } from "@/lib/workoutData";
 
 describe("weekKey", () => {
@@ -67,6 +75,39 @@ describe("calculateStreak", () => {
     });
 
     expect(calculateStreak(completions)).toBe(1);
+  });
+});
+
+describe("calculateDailyHabitStreak", () => {
+  it("returns 0 for an empty record", () => {
+    expect(calculateDailyHabitStreak({})).toBe(0);
+  });
+
+  it("an explicit false today breaks the streak immediately", () => {
+    const habit: DailyHabitRecord = {
+      [daysAgoKey(0)]: false,
+      [daysAgoKey(1)]: true,
+      [daysAgoKey(2)]: true,
+    };
+    expect(calculateDailyHabitStreak(habit)).toBe(0);
+  });
+
+  it("undefined today preserves the streak from prior days (grace period)", () => {
+    const habit: DailyHabitRecord = {
+      [daysAgoKey(1)]: true,
+      [daysAgoKey(2)]: true,
+    };
+    // today (daysAgoKey(0)) is absent/undefined
+    expect(calculateDailyHabitStreak(habit)).toBe(2);
+  });
+
+  it("a past explicit false still breaks the streak as before", () => {
+    const habit: DailyHabitRecord = {
+      [daysAgoKey(0)]: true,
+      [daysAgoKey(1)]: false,
+      [daysAgoKey(2)]: true,
+    };
+    expect(calculateDailyHabitStreak(habit)).toBe(1);
   });
 });
 

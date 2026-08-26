@@ -5,24 +5,24 @@ import type { RecentDay } from "@/lib/helpers";
 
 interface HabitCardProps {
   label: string;
-  doneToday: boolean;
+  statusToday: boolean | undefined;
   streak: number;
   bestStreak: number;
   expanded: boolean;
-  recentDays: (RecentDay & { logged: boolean })[];
-  onToggleToday: () => void;
+  recentDays: (RecentDay & { logged: boolean | undefined })[];
+  onSetToday: (done: boolean) => void;
   onToggleDate: (dateKey: string) => void;
   onExpandToggle: () => void;
 }
 
 export function HabitCard({
   label,
-  doneToday,
+  statusToday,
   streak,
   bestStreak,
   expanded,
   recentDays,
-  onToggleToday,
+  onSetToday,
   onToggleDate,
   onExpandToggle,
 }: HabitCardProps) {
@@ -33,20 +33,35 @@ export function HabitCard({
       aria-label={`${label} tracker`}
     >
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onToggleToday}
-          aria-pressed={doneToday}
-          aria-label={doneToday ? `Mark ${label} today as not done` : `Mark ${label} today as done`}
-          className="pressable shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-          style={{
-            background: doneToday ? "var(--accent)" : "var(--bg-elevated)",
-            color: doneToday ? "var(--accent-contrast)" : "var(--text-muted)",
-            boxShadow: doneToday ? "0 0 8px var(--accent-glow)" : "none",
-          }}
-        >
-          <Icon name="check" size={15} strokeWidth={3} />
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onSetToday(true)}
+            aria-pressed={statusToday === true}
+            aria-label={`Mark ${label} today as done`}
+            className="pressable w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            style={{
+              background: statusToday === true ? "var(--accent)" : "var(--bg-elevated)",
+              color: statusToday === true ? "var(--accent-contrast)" : "var(--text-muted)",
+              boxShadow: statusToday === true ? "0 0 8px var(--accent-glow)" : "none",
+            }}
+          >
+            <Icon name="check" size={15} strokeWidth={3} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onSetToday(false)}
+            aria-pressed={statusToday === false}
+            aria-label={`Mark ${label} today as missed`}
+            className="pressable w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            style={{
+              background: statusToday === false ? "var(--danger)" : "var(--bg-elevated)",
+              color: statusToday === false ? "var(--accent-contrast)" : "var(--text-muted)",
+            }}
+          >
+            <Icon name="close" size={15} strokeWidth={3} />
+          </button>
+        </div>
 
         <button
           type="button"
@@ -84,20 +99,24 @@ export function HabitCard({
               key={d.key}
               type="button"
               onClick={() => onToggleDate(d.key)}
-              aria-pressed={d.logged}
-              aria-label={`${d.logged ? "Unlog" : "Log"} ${label} for ${d.key}${d.isToday ? " (today)" : ""}`}
+              aria-pressed={d.logged === true}
+              aria-label={`Mark ${label} as ${d.logged === true ? "missed" : "done"} for ${d.key}${d.isToday ? " (today)" : ""}`}
               className="pressable flex-1 flex flex-col items-center gap-1 py-1 rounded-lg"
             >
               <span
                 className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
                 style={{
-                  background: d.logged ? "var(--accent)" : "var(--bg-elevated)",
-                  color: d.logged ? "var(--accent-contrast)" : "var(--text-muted)",
+                  background: d.logged === true ? "var(--accent)" : d.logged === false ? "var(--danger)" : "var(--bg-elevated)",
+                  color: d.logged === true || d.logged === false ? "var(--accent-contrast)" : "var(--text-muted)",
                   outline: d.isToday ? "2px solid var(--accent-light)" : "none",
                   outlineOffset: "1px",
                 }}
               >
-                {d.logged ? <Icon name="check" size={11} strokeWidth={3.5} /> : null}
+                {d.logged === true ? (
+                  <Icon name="check" size={11} strokeWidth={3.5} />
+                ) : d.logged === false ? (
+                  <Icon name="close" size={11} strokeWidth={3.5} />
+                ) : null}
               </span>
               <span className="text-[10px] font-semibold tracking-wide" style={{ color: d.isToday ? "var(--text-primary)" : "var(--text-muted)" }}>
                 {d.dayLabel}
