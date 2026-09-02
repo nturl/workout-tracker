@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { weeklyPlan, type WorkoutSession } from "@/lib/workoutData";
 import { weekKey, weekKeyForOffset, sessionKey, getTodayDayName, getWeekProgress, calculateStreak, getBestStreak, calculateDailyHabitStreak, getBestDailyHabitStreak, getLastNDays, todayKey, isSessionScheduled } from "@/lib/helpers";
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
+import { useTodayKey } from "@/hooks/useTodayKey";
 import { SyncIndicator } from "@/components/ui/SyncIndicator";
 import { Icon } from "@/components/ui/Icon";
 import { SessionCard } from "@/components/dashboard/SessionCard";
@@ -127,7 +128,24 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
   const isCurrentWeek = weekOffset === 0;
   const streak = useMemo(() => mounted ? calculateStreak(completions) : 0, [mounted, completions]);
   const bestStreak = useMemo(() => mounted ? getBestStreak(completions) : 0, [mounted, completions]);
-  const today = todayKey();
+  // BUG-30: reactive, unlike a bare todayKey() call — see useTodayKey.ts.
+  const today = useTodayKey();
+
+  // BUG-30: when the day actually rolls over, advance selectedDay along with
+  // it — but only if the user hadn't manually picked a different day. Read
+  // selectedDay from the store directly (not the reactive `selectedDay`
+  // above) so this effect only fires on a real day change, not on every
+  // manual day tap.
+  const prevTodayNameRef = useRef(todayName);
+  useEffect(() => {
+    const prevDayName = prevTodayNameRef.current;
+    prevTodayNameRef.current = todayName;
+    if (todayName === prevDayName) return;
+    if (useWorkoutStore.getState().selectedDay === prevDayName) {
+      setSelectedDay(todayName);
+    }
+  }, [todayName, setSelectedDay]);
+
   const habits = useMemo(() => {
     if (!mounted) return [];
     const last7 = getLastNDays(7);

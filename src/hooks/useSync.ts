@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useWorkoutStore } from "./useWorkoutStore";
+import { useTodayKey } from "./useTodayKey";
 import type { SyncData, SyncPushResponse } from "@/types/workout";
 
 async function fetchSyncData(): Promise<SyncData | null> {
@@ -73,7 +74,7 @@ export function useSync(enabled: boolean) {
   enabledRef.current = enabled;
 
   // Initial fetch - 5 min staleness, no window-focus refetch (V14 bandwidth diet)
-  const { data: serverData, isSuccess: fetched } = useQuery({
+  const { data: serverData, isSuccess: fetched, refetch: refetchSync } = useQuery({
     queryKey: ["sync-data"],
     queryFn: fetchSyncData,
     enabled,
@@ -81,6 +82,21 @@ export function useSync(enabled: boolean) {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
+
+  // BUG-30: the bandwidth-diet settings above intentionally skip a refetch on
+  // window focus/mount, so a tab left open across midnight otherwise never
+  // learns about anything another device wrote overnight until the 5-minute
+  // staleTime happens to lapse. Force exactly one refetch right when the day
+  // actually rolls over (not on every mount/focus) to close that gap.
+  const todayKeyValue = useTodayKey();
+  const prevTodayKeyRef = useRef(todayKeyValue);
+  useEffect(() => {
+    const prevKey = prevTodayKeyRef.current;
+    prevTodayKeyRef.current = todayKeyValue;
+    if (todayKeyValue === prevKey) return;
+    if (!enabledRef.current || !hydrated.current) return;
+    refetchSync();
+  }, [todayKeyValue, refetchSync]);
 
   // Push mutation with retry
   // V14: don't invalidate on success - trust local store, avoid redundant GET after every POST
