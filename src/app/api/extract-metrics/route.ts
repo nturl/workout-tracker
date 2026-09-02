@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { auth } from "@clerk/nextjs/server";
 import { rateLimit, rateLimitResponse, checkCsrf, csrfResponse } from "@/lib/rateLimit";
 import { extractMetricsSchema } from "@/lib/validators";
 
@@ -46,6 +47,14 @@ export async function POST(req: NextRequest) {
   if (!success) return rateLimitResponse();
 
   try {
+    // This route was relying entirely on Clerk middleware for auth, which
+    // (once made a public route below, so unauthenticated fetches get a
+    // JSON 401 instead of an HTML 404 - see middleware.ts) no longer
+    // enforces a session here. Check it explicitly, same as the other
+    // biomarker/health routes.
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     // Validate input before checking server config: a bad request is 400
     // regardless of whether the API key is present.
     const body = await req.json();

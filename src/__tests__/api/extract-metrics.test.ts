@@ -76,4 +76,21 @@ describe("POST /api/extract-metrics", () => {
     const res = await POST(req);
     expect(res.status).toBe(403);
   });
+
+  // BUG-12: this route relied entirely on Clerk middleware's auth.protect()
+  // for auth (no handler-level check), which only works for page navigations
+  // - a plain fetch() with no session got rewritten to an HTML 404. Now that
+  // /api/extract-metrics is a public route in middleware.ts (so unauthed
+  // fetches aren't intercepted), the handler must enforce the session itself.
+  it("returns a JSON 401 when not authenticated (BUG-12: not an HTML 404)", async () => {
+    setMockUserId(null);
+    const res = await POST(makeRequest({
+      imageDataUrl: "data:image/jpeg;base64,abc123",
+      source: "eightSleep",
+    }));
+    expect(res.status).toBe(401);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    const json = await res.json();
+    expect(json.error).toBe("Unauthorized");
+  });
 });

@@ -1,6 +1,16 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-const isPublicRoute = createRouteMatcher([
+// Routes below handle auth internally via auth() + a JSON 401, instead of
+// relying on clerkMiddleware's auth.protect(). This matters for any
+// fetch()-initiated call (as opposed to a full page navigation): protect()'s
+// unauthenticated-request handling looks at the Sec-Fetch-Dest/Accept
+// headers, and a plain fetch() has neither "document"/"iframe" dest nor
+// "text/html" in Accept, so it falls through to Next's notFound() - an HTML
+// 404 page, not JSON. Client code that does res.json() on the response then
+// throws a JSON-parse error instead of seeing a clean 401 (e.g. after the
+// session expires in a tab that's still open). Every route listed here has
+// its own auth() + 401 guard, verified per-route in src/__tests__/api/.
+export const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
@@ -8,10 +18,13 @@ const isPublicRoute = createRouteMatcher([
   "/api/cron/(.*)",
   "/api/health(.*)",
   "/api/oauth/oura/callback(.*)",
-  // Push routes handle auth internally via auth() + 401. Letting Clerk
-  // middleware intercept turns unauthed fetches into 404 redirects, which
-  // breaks SW-initiated calls after session expiry.
   "/api/push(.*)",
+  "/api/recovery(.*)",
+  "/api/chat(.*)",
+  "/api/extract-metrics(.*)",
+  "/api/labs(.*)",
+  "/api/biomarkers(.*)",
+  "/api/health-goals(.*)",
   "/manifest.json",
 ]);
 

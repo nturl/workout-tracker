@@ -55,10 +55,13 @@ describe("GET /api/recovery", () => {
     expect(json.data.eightSleep.sleepFitnessScore).toBe(86);
   });
 
-  it("returns 401 when not authenticated", async () => {
+  it("returns a JSON 401 when not authenticated (BUG-12: not an HTML 404)", async () => {
     setMockUserId(null);
     const res = await GET(makeGetRequest());
     expect(res.status).toBe(401);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    const json = await res.json();
+    expect(json.error).toBe("Unauthorized");
   });
 });
 

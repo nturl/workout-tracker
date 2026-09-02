@@ -47,7 +47,7 @@ export function ExportButton({ data }: { data: RecoveryData }) {
       const log = logs[key];
       const feeling = log?.feeling || "";
       const duration = log?.duration || "";
-      const notes = (log?.notes || "").replace(/,/g, ";").replace(/\n/g, " ");
+      const notes = (log?.notes || "").replace(/,/g, ";").replace(/\n/g, " ").replace(/"/g, '""');
       const completedAt = log?.completedAt || "";
       workoutCsv += `${key},${completed},${feeling},${duration},"${notes}",${completedAt}\n`;
     }

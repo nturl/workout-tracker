@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { labsActionSchema } from "@/lib/validators";
 import { rateLimit, rateLimitResponse, checkCsrf, csrfResponse } from "@/lib/rateLimit";
+import { getRedis } from "@/lib/redis";
 import {
   getLabTests,
   getLabTest,
@@ -64,11 +65,18 @@ export async function POST(req: NextRequest) {
       }
       case "import": {
         const lab = await importLab(userId, action.data);
+        // Invalidate cached health goals so they regenerate with new data
+        // (mirrors /api/extract-labs's photo-import path).
+        const redis = getRedis();
+        await redis.del(`user:${userId}:health-goals`);
         return NextResponse.json({ lab, success: true });
       }
       case "delete": {
         const deleted = await deleteLabTest(userId, action.labId);
         if (!deleted) return NextResponse.json({ error: "Lab test not found" }, { status: 404 });
+        // Deleting markers also changes the data goals are derived from.
+        const redis = getRedis();
+        await redis.del(`user:${userId}:health-goals`);
         return NextResponse.json({ success: true });
       }
       case "summary": {

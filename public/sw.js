@@ -1,7 +1,29 @@
-const CACHE_NAME = "workout-tracker-v5";
-const STATIC_CACHE = "workout-static-v5";
-const API_CACHE = "workout-api-v5";
+// BUG-28: bump this version suffix on every deploy that changes cached HTML
+// or assets. That's what actually keeps users off a stale shell here - the
+// activate handler below deletes any cache whose name isn't in this list, so
+// a version bump throws away the previous deploy's cached "/" shell and any
+// static assets cached under it (which would otherwise reference chunk URLs
+// from a build that no longer exists on the server). There's no build step
+// wired up to bump this automatically; it has to be done by hand per deploy.
+const CACHE_NAME = "workout-tracker-v6";
+const STATIC_CACHE = "workout-static-v6";
+const API_CACHE = "workout-api-v6";
 
+// Deliberately NOT listing hashed Next.js chunk/CSS filenames here: they
+// change every build, so a hand-maintained list would go stale (missing new
+// chunks, holding dead ones) the moment code changes. Instead:
+//   - the navigate handler below re-caches the HTML shell on every
+//     successful online load, so it can't go stale while the user is online;
+//   - the static-assets handler is cache-first but populates the cache the
+//     first time each asset is actually requested, so a chunk referenced by
+//     a freshly-fetched shell gets fetched (and cached) right behind it.
+// Tradeoff: a user who goes offline before ever loading a given route in
+// this session can still hit a cache-miss for that route's chunks. Fully
+// closing that gap would mean precaching every build's hashed asset list,
+// which needs a build-time manifest this file doesn't have access to - out
+// of scope for this fix. What IS fixed here is the deploy-to-deploy case:
+// the version bump above ensures no one keeps running yesterday's cached
+// shell/assets indefinitely.
 const PRECACHE_URLS = [
   "/",
   "/manifest.json",
