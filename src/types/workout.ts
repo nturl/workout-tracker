@@ -84,7 +84,21 @@ export interface RecoveryLevel {
   advice: string;
 }
 
+/** Keys this device deliberately REMOVED, sent alongside a delta push so the
+ *  server deletes them instead of reading "absent" as "unchanged".
+ *  `habits` is habitId -> the date keys to clear back to unrecorded. */
+export interface SyncTombstones {
+  completions?: string[];
+  logs?: string[];
+  recovery?: string[];
+  habits?: Record<string, string[]>;
+}
+
 export interface SyncPayload {
+  /** Present only on a delta push. Absent => legacy full-map push (an old
+   *  cached client bundle). See the design note atop src/app/api/sync/route.ts. */
+  syncMode?: "delta";
+  tombstones?: SyncTombstones;
   completions?: CompletionRecord;
   logs?: WorkoutLogRecord;
   level?: Level;

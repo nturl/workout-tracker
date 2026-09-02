@@ -7,21 +7,26 @@ import { ConnectedAccounts } from "@/components/settings/ConnectedAccounts";
 import { HabitManager } from "@/components/settings/HabitManager";
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
 import { useTheme } from "@/hooks/useTheme";
-import { useSync } from "@/hooks/useSync";
-import { useAuth, UserButton } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import type { Theme } from "@/types/workout";
 
 const sectionLabel =
   "text-[12px] leading-[16px] font-semibold tracking-[0.08em] uppercase text-content-secondary mb-3";
 
-export function SettingsTab() {
+interface SettingsTabProps {
+  /** Push pending changes (debounced). Owned by the page, which runs the one
+   *  useSync() instance — BUG-05: this tab used to create a second one, and
+   *  since it unmounts on every tab switch, each Settings visit re-ran the
+   *  first-load hydrate+full-push against a cached, possibly stale snapshot. */
+  syncNow: () => void;
+}
+
+export function SettingsTab({ syncNow }: SettingsTabProps) {
   const level = useWorkoutStore((s) => s.level);
   const setLevel = useWorkoutStore((s) => s.setLevel);
   const timerSettings = useWorkoutStore((s) => s.timerSettings);
   const setTimerSettings = useWorkoutStore((s) => s.setTimerSettings);
   const { theme, setTheme } = useTheme();
-  const { isSignedIn } = useAuth();
-  const { syncNow } = useSync(!!isSignedIn);
 
   const handleSetLevel = (l: Level) => {
     setLevel(l);

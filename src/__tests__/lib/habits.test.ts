@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { migrateHabitsState, seedDefaultHabits, useWorkoutStore } from "@/hooks/useWorkoutStore";
+import { migrateHabitsState, seedDefaultHabits, useWorkoutStore, emptyDirty } from "@/hooks/useWorkoutStore";
 import { DEFAULT_HABITS, makeHabitId } from "@/lib/habits";
 
 describe("DEFAULT_HABITS config", () => {
@@ -111,6 +111,109 @@ describe("migrateHabitsState (v2 -> v3)", () => {
   });
 });
 
+describe("migrateHabitsState (v4 -> v5)", () => {
+  // BUG-13: `false` habit-date values written before the tri-state redesign
+  // (commit 989297d, 2026-08-26 15:14 ET) meant "unchecked via the old
+  // toggle", not an explicit "missed", and now render as a red X. This
+  // migration removes those pre-cutoff `false` keys and marks them dirty so
+  // the next push tombstones them server-side too (S1's delta/tombstone
+  // design). Dates on/after the cutoff are genuine misses and stay.
+  it("removes pre-cutoff false habit dates and marks them dirty for tombstoning, leaves post-cutoff dates alone", () => {
+    const out = migrateHabitsState(
+      {
+        habits: {
+          meditation: {
+            "2026-08-20": false, // old-toggle unchecked, pre-cutoff -> removed
+            "2026-08-25": false, // cutoff date itself -> removed
+            "2026-08-26": false, // genuine post-redesign miss -> kept
+            "2026-08-27": true, // done -> kept regardless of date
+          },
+          walk: {
+            "2026-08-10": false, // pre-cutoff, different habit -> removed
+          },
+        },
+        dirty: emptyDirty(),
+      },
+      4,
+    ) as Record<string, unknown>;
+
+    const habits = out.habits as Record<string, Record<string, boolean>>;
+    expect(habits.meditation["2026-08-20"]).toBeUndefined();
+    expect(habits.meditation["2026-08-25"]).toBeUndefined();
+    expect(habits.meditation["2026-08-26"]).toBe(false);
+    expect(habits.meditation["2026-08-27"]).toBe(true);
+    expect(habits.walk["2026-08-10"]).toBeUndefined();
+
+    const dirty = out.dirty as { habits: Record<string, Record<string, boolean>> };
+    expect(dirty.habits.meditation["2026-08-20"]).toBe(true);
+    expect(dirty.habits.meditation["2026-08-25"]).toBe(true);
+    expect(dirty.habits.meditation["2026-08-26"]).toBeUndefined();
+    expect(dirty.habits.walk["2026-08-10"]).toBe(true);
+  });
+
+  // B2 mitigation (pre-ship review BLOCKER): the cutoff date is inferred
+  // from the commit timestamp, not a confirmed deploy date, and this
+  // migration is one-shot and destructive both locally and (via the
+  // tombstone) server-side, with no second pass if the cutoff turns out to
+  // be wrong. Every removed {habitId, date} is copied into
+  // `habitFalseBackupV5` before deletion so it can be restored by hand.
+  it("backs up every removed {habitId, date} into habitFalseBackupV5 before deleting it", () => {
+    const out = migrateHabitsState(
+      {
+        habits: {
+          meditation: {
+            "2026-08-20": false,
+            "2026-08-25": false,
+            "2026-08-26": false, // kept, not backed up (not removed)
+          },
+          walk: { "2026-08-10": false },
+        },
+        dirty: emptyDirty(),
+      },
+      4,
+    ) as Record<string, unknown>;
+
+    const backup = out.habitFalseBackupV5 as Record<string, Record<string, boolean>>;
+    expect(backup.meditation["2026-08-20"]).toBe(false);
+    expect(backup.meditation["2026-08-25"]).toBe(false);
+    expect(backup.meditation["2026-08-26"]).toBeUndefined();
+    expect(backup.walk["2026-08-10"]).toBe(false);
+  });
+
+  it("merges into an existing habitFalseBackupV5 rather than replacing it", () => {
+    const out = migrateHabitsState(
+      {
+        habits: { meditation: { "2026-08-20": false } },
+        dirty: emptyDirty(),
+        habitFalseBackupV5: { meditation: { "2026-07-01": false } },
+      },
+      4,
+    ) as Record<string, unknown>;
+    const backup = out.habitFalseBackupV5 as Record<string, Record<string, boolean>>;
+    expect(backup.meditation["2026-07-01"]).toBe(false);
+    expect(backup.meditation["2026-08-20"]).toBe(false);
+  });
+
+  it("preserves existing dirty marks unrelated to the migration", () => {
+    const out = migrateHabitsState(
+      {
+        habits: { meditation: { "2026-08-20": false } },
+        dirty: { ...emptyDirty(), habits: { meditation: { "2026-08-27": true } } },
+      },
+      4,
+    ) as Record<string, unknown>;
+    const dirty = out.dirty as { habits: Record<string, Record<string, boolean>> };
+    expect(dirty.habits.meditation["2026-08-27"]).toBe(true);
+    expect(dirty.habits.meditation["2026-08-20"]).toBe(true);
+  });
+
+  it("is a no-op at the current version", () => {
+    const input = { habits: { x: { "2026-08-20": false } }, dirty: emptyDirty() };
+    const out = migrateHabitsState(input, 5) as Record<string, unknown>;
+    expect(out).toEqual(input);
+  });
+});
+
 describe("seedDefaultHabits", () => {
   it("returns an independent copy each call (no shared mutation)", () => {
     const a = seedDefaultHabits();
@@ -125,7 +228,16 @@ describe("seedDefaultHabits", () => {
 
 describe("useWorkoutStore habits", () => {
   beforeEach(() => {
-    useWorkoutStore.setState({ habits: {}, habitDefs: seedDefaultHabits(), habitDefsVersion: 0, habitDefsDirty: false });
+    // `dirty` reset added alongside BUG-14's new test below: without it, a
+    // mark from an earlier test can leak in (see fix-s1.md's note on the
+    // matching gap in the "hydrateFromSync merges..." test above).
+    useWorkoutStore.setState({
+      habits: {},
+      habitDefs: seedDefaultHabits(),
+      habitDefsVersion: 0,
+      habitDefsDirty: false,
+      dirty: emptyDirty(),
+    });
   });
 
   it("toggleHabit flips a single habit/date without touching others", () => {
@@ -137,6 +249,26 @@ describe("useWorkoutStore habits", () => {
     // Toggling again clears it.
     useWorkoutStore.getState().toggleHabit("walk", "2026-05-29");
     expect(useWorkoutStore.getState().habits.walk["2026-05-29"]).toBe(false);
+  });
+
+  // BUG-14: the three-state cycle's last step (missed -> unrecorded) is
+  // clearHabit — S1's deletion entry point, which both removes the date key
+  // and marks it dirty so the tombstone path fires on the next push (see
+  // fix-s1.md, "API for the next lane (BUG-13 / BUG-14)").
+  it("clearHabit after toggleHabit removes the date and marks it dirty for the tombstone path", () => {
+    useWorkoutStore.getState().toggleHabit("walk", "2026-05-29");
+    expect(useWorkoutStore.getState().habits.walk["2026-05-29"]).toBe(true);
+    expect(useWorkoutStore.getState().dirty.habits.walk["2026-05-29"]).toBe(true);
+
+    useWorkoutStore.getState().clearHabit("walk", "2026-05-29");
+    expect(useWorkoutStore.getState().habits.walk["2026-05-29"]).toBeUndefined();
+    expect("2026-05-29" in useWorkoutStore.getState().habits.walk).toBe(false);
+    // Still dirty (now a deletion) — getSyncDelta turns a dirty-but-absent
+    // key into a tombstone rather than treating it as untouched.
+    expect(useWorkoutStore.getState().dirty.habits.walk["2026-05-29"]).toBe(true);
+
+    const delta = useWorkoutStore.getState().getSyncDelta();
+    expect(delta.tombstones?.habits).toEqual({ walk: ["2026-05-29"] });
   });
 
   it("hydrateFromSync merges an incoming habits map (prefer-true)", () => {
@@ -157,6 +289,42 @@ describe("useWorkoutStore habits", () => {
     expect(notWatch["2026-05-01"]).toBe(false);
     // ...but a date only present in legacy is filled in.
     expect(notWatch["2026-04-30"]).toBe(true);
+  });
+});
+
+// B2 mitigation: habitFalseBackupV5 must never leave the device. Persisted
+// (partialize) so it survives a reload, but excluded from both sync payload
+// builders — it's a local recovery copy of data the migration deleted, not
+// data to push anywhere.
+describe("habitFalseBackupV5 is local-only", () => {
+  beforeEach(() => {
+    useWorkoutStore.setState({
+      completions: {},
+      logs: {},
+      habits: {},
+      dirty: emptyDirty(),
+      habitFalseBackupV5: { meditation: { "2026-08-01": false } },
+    });
+  });
+
+  it("is excluded from getSyncPayload", () => {
+    const payload = useWorkoutStore.getState().getSyncPayload();
+    expect(payload).not.toHaveProperty("habitFalseBackupV5");
+  });
+
+  it("is excluded from getSyncDelta", () => {
+    const delta = useWorkoutStore.getState().getSyncDelta();
+    expect(delta).not.toHaveProperty("habitFalseBackupV5");
+  });
+
+  it("is included in the persisted (partialize) snapshot", () => {
+    const store = useWorkoutStore as unknown as {
+      persist: { getOptions: () => { partialize?: (s: unknown) => Record<string, unknown> } };
+    };
+    const partialize = store.persist.getOptions().partialize;
+    expect(partialize).toBeDefined();
+    const persisted = partialize!(useWorkoutStore.getState());
+    expect(persisted.habitFalseBackupV5).toEqual({ meditation: { "2026-08-01": false } });
   });
 });
 

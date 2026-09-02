@@ -2,7 +2,8 @@
 
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
-import { useWorkoutStore } from "@/hooks/useWorkoutStore";
+import { useQueryClient } from "@tanstack/react-query";
+import { useWorkoutStore, setPersistAccount } from "@/hooks/useWorkoutStore";
 import { useSync } from "@/hooks/useSync";
 import { todayKey } from "@/lib/helpers";
 import { useOuraStatus, useOuraSync } from "@/hooks/useConnectedAccounts";
@@ -29,7 +30,30 @@ export default function Home() {
   const setMounted = useWorkoutStore((s) => s.setMounted);
   const mergeRecoveryData = useWorkoutStore((s) => s.mergeRecoveryData);
 
-  const { syncNow, syncStatus } = useSync(!!isSignedIn && clerkLoaded);
+  // BUG-03: local persistence and the query cache are both scoped to the signed-in
+  // account. Until the store has been re-pointed at THIS account's key, syncing is
+  // held shut — otherwise whatever the previously signed-in account left in local
+  // storage gets hydrated and pushed straight into the new account's server record.
+  const queryClient = useQueryClient();
+  const [storeAccount, setStoreAccount] = useState<string | null | undefined>(undefined);
+  const accountId = user?.id ?? null;
+  useEffect(() => {
+    if (!clerkLoaded) return;
+    if (storeAccount === accountId) return;
+    let cancelled = false;
+    setStoreAccount(undefined);
+    // The cached GET is the previous account's answer; it must not be served to
+    // this one inside the 5-minute staleTime window.
+    queryClient.clear();
+    setPersistAccount(accountId).then(() => {
+      if (!cancelled) setStoreAccount(accountId);
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clerkLoaded, accountId]);
+
+  const syncReady = clerkLoaded && !!isSignedIn && storeAccount === accountId && accountId !== null;
+  const { syncNow, syncStatus } = useSync(syncReady);
 
   const [activeTab, setActiveTab] = useState<TabId>("workouts");
   const [chatState, setChatState] = useState<{ open: boolean; context?: import("@/components/chat/ChatSheet").ChatContext | null }>({ open: false });
@@ -62,8 +86,14 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clerkLoaded, user]);
 
-  // Auto-sync Oura
-  const ouraStatus = useOuraStatus();
+  // Auto-sync Oura.
+  // BUG-26: /api/oura/status is behind auth.protect(), which rewrites an
+  // unauthenticated fetch to a 404 — and this component runs its hooks before
+  // the auth gate below, so every anonymous landing-page visit fired one.
+  // useOuraStatus's `enabled` option (added for this) gates the same shared
+  // ["oura-status"] query key the signed-in observers (WorkoutsTab,
+  // ConnectedAccounts) also use, so it doesn't run until there's a session.
+  const ouraStatus = useOuraStatus(authLoaded && !!isSignedIn);
   const ouraSync = useOuraSync();
   useEffect(() => {
     if (!mounted || !ouraStatus.data?.connected) return;
@@ -74,8 +104,13 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, ouraStatus.data?.connected]);
 
-  // Auth gate
-  if (authLoaded && !isSignedIn) return <LandingPage />;
+  // Auth gate.
+  // BUG-27: this used to fall through to DashboardSkeleton while Clerk was
+  // still loading, so signed-out visitors got a flash of habit/session card
+  // placeholders before the marketing page. The dashboard skeleton is only
+  // correct once we know the visitor is signed in.
+  if (!authLoaded) return <div className="min-h-screen" style={{ background: "var(--bg-primary)" }} />;
+  if (!isSignedIn) return <LandingPage />;
   if (!mounted) return <DashboardSkeleton />;
 
   return (
@@ -108,7 +143,10 @@ export default function Home() {
 
         {activeTab === "settings" && (
           <Suspense fallback={<TabSkeleton />}>
-            <SettingsTab />
+            {/* BUG-05: one useSync() for the page. SettingsTab used to create
+                its own, so every Settings open re-hydrated from a possibly
+                5-minute-stale cached snapshot and pushed the whole store. */}
+            <SettingsTab syncNow={syncNow} />
           </Suspense>
         )}
 

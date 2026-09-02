@@ -40,6 +40,15 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
   }, [confirmDeleteId]);
 
   const startEdit = (id: string, label: string) => {
+    // BUG-15: commit any in-progress, uncommitted rename before switching
+    // the edit target — otherwise the typed draft is silently discarded.
+    if (editingId && editingId !== id) {
+      const trimmed = draftLabel.trim();
+      if (trimmed) {
+        renameHabit(editingId, trimmed);
+        syncNow();
+      }
+    }
     setConfirmDeleteId(null);
     setEditingId(id);
     setDraftLabel(label);
@@ -133,6 +142,18 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
                     if (e.key === "Enter") commitEdit();
                     if (e.key === "Escape") cancelEdit();
                   }}
+                  onBlur={() => {
+                    // BUG-15: commit a non-empty draft on blur instead of
+                    // silently discarding it (Escape still cancels).
+                    if (!editingId) return;
+                    const trimmed = draftLabel.trim();
+                    if (trimmed) {
+                      renameHabit(editingId, trimmed);
+                      syncNow();
+                    }
+                    setEditingId(null);
+                    setDraftLabel("");
+                  }}
                   maxLength={100}
                   aria-label="Habit name"
                   className="input-field flex-1 min-w-0 bg-transparent text-[15px] font-medium outline-none border-b"
@@ -147,11 +168,15 @@ export function HabitManager({ syncNow }: HabitManagerProps) {
               {/* Actions */}
               {isEditing ? (
                 <>
-                  <button type="button" onClick={commitEdit} aria-label="Save name" className={iconBtn}
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={commitEdit} aria-label="Save name" className={iconBtn}
                     style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}>
                     <Icon name="check" size={15} strokeWidth={2.6} />
                   </button>
-                  <button type="button" onClick={cancelEdit} aria-label="Cancel" className={iconBtn}
+                  {/* B3: without preventDefault on mousedown, the mousedown
+                      blurs the input first, the onBlur handler above commits
+                      the draft, and this branch unmounts before the click can
+                      reach cancelEdit — "Cancel" silently saved instead. */}
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={cancelEdit} aria-label="Cancel" className={iconBtn}
                     style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
                     <Icon name="close" size={14} strokeWidth={2.4} />
                   </button>

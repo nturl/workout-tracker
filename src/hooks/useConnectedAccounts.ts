@@ -18,7 +18,11 @@ function fetchWithCsrf(url: string, opts?: RequestInit) {
   });
 }
 
-export function useOuraStatus() {
+// BUG-26: `enabled` defaults to true (existing signed-in callers are
+// unaffected). page.tsx's landing-page render runs this hook's query before
+// its auth gate, so it passes `enabled: authLoaded && !!isSignedIn` to avoid
+// firing an unauthenticated request that /api/oura/status 404s.
+export function useOuraStatus(enabled = true) {
   return useQuery<ConnectionStatus>({
     queryKey: ["oura-status"],
     queryFn: async () => {
@@ -27,6 +31,7 @@ export function useOuraStatus() {
       return res.json();
     },
     staleTime: 60_000,
+    enabled,
   });
 }
 

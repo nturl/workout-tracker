@@ -17,7 +17,7 @@ const local = (habitDefs: HabitDef[], habitDefsVersion: number, habitDefsDirty =
 });
 
 describe("mergeHabitDefs", () => {
-  it("adopts the server list when the server version is strictly newer", () => {
+  it("adopts the server list when the server version is strictly newer and nothing local is pending", () => {
     const out = mergeHabitDefs(local(A, 1), { habitDefs: B, habitDefsVersion: 2 });
     expect(out.habitDefs).toEqual(B);
     expect(out.habitDefsVersion).toBe(2);
@@ -64,5 +64,28 @@ describe("mergeHabitDefs", () => {
     const out = mergeHabitDefs(local([], 0), { habitDefs: [], habitDefsVersion: 0 });
     expect(out.habitDefs.length).toBeGreaterThan(0);
     expect(out.habitDefsVersion).toBe(0);
+  });
+
+  // BUG-02: the dirty guard used to protect only the equal-version tiebreaker,
+  // so any strictly-newer server version silently ate an unpushed edit AND
+  // cleared habitDefsDirty, which stopped the edit being tracked for re-send.
+  it("protects a pending local edit from a strictly-newer server version", () => {
+    const out = mergeHabitDefs(local(A, 4, /* dirty */ true), { habitDefs: B, habitDefsVersion: 9 });
+    expect(out.habitDefs).toEqual(A);
+    expect(out.habitDefsDirty).toBe(true);
+  });
+
+  it("rebases a protected pending edit onto the newer server version so its retry is accepted", () => {
+    // Without the rebase the retry keeps carrying base 4, resolveHabitDefs
+    // keeps rejecting it as stale, and the edit can never land.
+    const out = mergeHabitDefs(local(A, 4, /* dirty */ true), { habitDefs: B, habitDefsVersion: 9 });
+    expect(out.habitDefsVersion).toBe(9);
+  });
+
+  it("does not rebase past an older server version", () => {
+    const out = mergeHabitDefs(local(A, 7, /* dirty */ true), { habitDefs: B, habitDefsVersion: 3 });
+    expect(out.habitDefs).toEqual(A);
+    expect(out.habitDefsVersion).toBe(7);
+    expect(out.habitDefsDirty).toBe(true);
   });
 });

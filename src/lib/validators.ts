@@ -7,6 +7,9 @@ const exerciseLogSchema = z.object({
   notes: z.string().max(500).optional(),
   completed: z.boolean().optional(),
   tutSeconds: z.number().nonnegative().optional(),
+  // BUG-19: kept in step with ExerciseLog in src/types/workout.ts. Without it
+  // Zod strips the key on every POST and the timestamp never reaches Redis.
+  completedAt: z.string().optional(),
 });
 
 export const logEntrySchema = z.object({
@@ -63,7 +66,23 @@ export const habitDefSchema = z.object({
   label: z.string().min(1).max(100),
 });
 
+const dateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** Keys the pushing device deliberately removed. Only a delta-aware client
+ *  sends these; see the design note atop src/app/api/sync/route.ts. */
+export const tombstonesSchema = z.object({
+  completions: z.array(z.string().max(200)).max(2000).optional(),
+  logs: z.array(z.string().max(200)).max(2000).optional(),
+  recovery: z.array(dateKey).max(2000).optional(),
+  habits: z.record(z.string().max(64), z.array(dateKey).max(2000)).optional(),
+});
+
 export const syncBodySchema = z.object({
+  // "delta" marks a payload that contains ONLY the keys this device changed
+  // since its last acked push. Absent => a legacy full-map push from an older
+  // client bundle, merged the way it always was.
+  syncMode: z.literal("delta").optional(),
+  tombstones: tombstonesSchema.optional(),
   completions: z.record(z.string(), z.boolean()).optional(),
   logs: z.record(z.string(), logEntrySchema).optional(),
   level: z.enum(["beginner", "intermediate", "advanced"]).optional(),

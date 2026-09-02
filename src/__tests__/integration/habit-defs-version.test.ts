@@ -4,6 +4,7 @@ import { setMockUserId } from "../mocks/clerk";
 import { GET, POST } from "@/app/api/sync/route";
 import { NextRequest } from "next/server";
 import type { HabitDef } from "@/lib/habits";
+import { useWorkoutStore } from "@/hooks/useWorkoutStore";
 
 // Server-authoritative habitDefs versioning. The server mints the version (CAS
 // on the client's base version), so a clock-skewed device can no longer win
@@ -99,5 +100,49 @@ describe("habitDefs server-assigned versioning", () => {
     expect(data.habitDefsUpdatedAt).toBeUndefined();
     expect(data.habitDefsVersion).toBe(1);
     expect(data.habitDefs).toEqual(LIST_A2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BUG-02, ack half: a push whose CAS base was stale comes back with a DIFFERENT
+// list than the one sent. applyHabitDefsAck used to adopt it unconditionally and
+// clear the dirty flag, deleting the local edit outright — the same loss as the
+// merge half, reached through the other door.
+// ---------------------------------------------------------------------------
+describe("applyHabitDefsAck conflict handling", () => {
+  beforeEach(() => {
+    useWorkoutStore.setState({ habitDefs: LIST_A, habitDefsVersion: 4, habitDefsDirty: true });
+  });
+
+  it("keeps a rejected local edit, rebases it, and leaves it dirty for a re-send", () => {
+    // We pushed LIST_A based on version 4; the server had already moved on and
+    // answers with its own winning list at version 5.
+    useWorkoutStore.getState().applyHabitDefsAck(
+      { habitDefs: LIST_S, habitDefsVersion: 5 },
+      LIST_A,
+    );
+    const s = useWorkoutStore.getState();
+    expect(s.habitDefs).toEqual(LIST_A);
+    expect(s.habitDefsVersion).toBe(5);
+    expect(s.habitDefsDirty).toBe(true);
+  });
+
+  it("adopts the ack and clears dirty when the server accepted the edit", () => {
+    useWorkoutStore.getState().applyHabitDefsAck(
+      { habitDefs: LIST_A, habitDefsVersion: 5 },
+      LIST_A,
+    );
+    const s = useWorkoutStore.getState();
+    expect(s.habitDefs).toEqual(LIST_A);
+    expect(s.habitDefsVersion).toBe(5);
+    expect(s.habitDefsDirty).toBe(false);
+  });
+
+  it("ignores an ack for a list the user has already edited past", () => {
+    useWorkoutStore.setState({ habitDefs: LIST_A2, habitDefsVersion: 4, habitDefsDirty: true });
+    useWorkoutStore.getState().applyHabitDefsAck({ habitDefs: LIST_A, habitDefsVersion: 5 }, LIST_A);
+    const s = useWorkoutStore.getState();
+    expect(s.habitDefs).toEqual(LIST_A2);
+    expect(s.habitDefsDirty).toBe(true);
   });
 });

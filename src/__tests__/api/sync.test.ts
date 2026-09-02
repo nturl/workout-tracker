@@ -91,4 +91,26 @@ describe("POST /api/sync", () => {
     const res = await POST(req);
     expect(res.status).toBe(403);
   });
+
+  it("accepts a delta push with tombstones", async () => {
+    const res = await POST(makeRequest("POST", {
+      syncMode: "delta",
+      completions: { "test-key": true },
+      tombstones: { habits: { meditation: ["2026-09-01"] }, completions: ["gone"] },
+    }));
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects a malformed tombstone list", async () => {
+    const res = await POST(makeRequest("POST", {
+      syncMode: "delta",
+      tombstones: { recovery: ["not-a-date"] },
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an unknown syncMode", async () => {
+    const res = await POST(makeRequest("POST", { syncMode: "full", level: "beginner" }));
+    expect(res.status).toBe(400);
+  });
 });

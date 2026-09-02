@@ -1,15 +1,22 @@
 "use client";
 
-export function SyncIndicator({ status }: { status: "idle" | "syncing" | "error" }) {
-  const colors = {
+import type { SyncStatus } from "@/hooks/useSync";
+
+export function SyncIndicator({ status }: { status: SyncStatus }) {
+  const colors: Record<SyncStatus, string> = {
     idle: "var(--accent)",
     syncing: "var(--warning)",
+    // BUG-20: a rate limit or a server blip clears itself. Only a permanent
+    // rejection (bad payload, signed out) earns the danger colour and the
+    // "Sync failed" text.
+    delayed: "var(--warning)",
     error: "var(--danger)",
   };
 
-  const labels = {
+  const labels: Record<SyncStatus, string> = {
     idle: "Synced",
     syncing: "Syncing...",
+    delayed: "Sync delayed",
     error: "Sync failed",
   };
 
@@ -19,7 +26,7 @@ export function SyncIndicator({ status }: { status: "idle" | "syncing" | "error"
         className="w-2 h-2 rounded-full transition-colors"
         style={{
           backgroundColor: colors[status],
-          animation: status === "syncing" ? "pulse 1.5s infinite" : undefined,
+          animation: status === "syncing" || status === "delayed" ? "pulse 1.5s infinite" : undefined,
         }}
       />
       {status === "error" && (

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type { Level } from "@/lib/workoutData";
 import { LEGACY_HABIT_IDS, DEFAULT_HABITS, makeHabitId, habitDefsEqual, type HabitDef } from "@/lib/habits";
 import type {
@@ -9,6 +9,8 @@ import type {
   NotificationSettings,
   DailyHabitRecord,
   RecoveryData,
+  SyncPayload,
+  SyncTombstones,
   Theme,
 } from "@/types/workout";
 
@@ -24,6 +26,41 @@ export const DEFAULT_TIMER_SETTINGS: TimerSettings = {
   countdownTicks: true,
   haptics: true,
   wakeLock: true,
+};
+
+// ---------------------------------------------------------------------------
+// Dirty-key tracking (BUG-01). Records which KEYS this device has changed since
+// its last acknowledged push, so a push can carry only real writes instead of
+// the whole store. A key that is dirty but missing from its map is a deletion
+// and is sent as a tombstone. Full design: top of src/app/api/sync/route.ts.
+// ---------------------------------------------------------------------------
+
+/** Set of changed keys within one map. */
+export type DirtyKeys = Record<string, true>;
+
+export interface DirtyState {
+  completions: DirtyKeys;
+  logs: DirtyKeys;
+  recovery: DirtyKeys;
+  /** habitId -> date -> changed */
+  habits: Record<string, DirtyKeys>;
+  level: boolean;
+}
+
+export const emptyDirty = (): DirtyState => ({
+  completions: {},
+  logs: {},
+  recovery: {},
+  habits: {},
+  level: false,
+});
+
+const withKey = (map: DirtyKeys | undefined, key: string): DirtyKeys => ({ ...(map || {}), [key]: true });
+
+const withKeys = (map: DirtyKeys | undefined, keys: string[]): DirtyKeys => {
+  const next: DirtyKeys = { ...(map || {}) };
+  for (const k of keys) next[k] = true;
+  return next;
 };
 
 /**
@@ -66,12 +103,19 @@ export interface HabitDefsState {
  * edit (the old `habitDefsUpdatedAt` bug). The server is the only minter of
  * versions; clients only ever adopt them.
  *
- * Rules: adopt the server list when local is empty, or the server version is
- * strictly newer. On an exact-version tie with differing content, fall back to a
- * deterministic content comparison (defense, kept from the original design) so
- * two devices converge instead of diverging silently. That tiebreaker is skipped
- * while a local edit is pending (`habitDefsDirty`) so an equal-version server
- * echo can't clobber a change that's about to be pushed.
+ * Rules: adopt the server list when local is empty. Otherwise, a pending local
+ * edit (`habitDefsDirty`) beats ANY server list — BUG-02: gating only the
+ * equal-version tiebreaker on `habitDefsDirty` meant a merely-newer server
+ * version silently ate an unpushed rename/add/delete/reorder AND cleared the
+ * dirty flag, so the edit stopped being tracked as needing a re-send. When not
+ * dirty, adopt a strictly-newer server version; on an exact-version tie with
+ * differing content, fall back to a deterministic content comparison (defense,
+ * kept from the original design) so two devices converge rather than diverge.
+ *
+ * When a dirty edit wins over a newer server version we still adopt the server's
+ * VERSION as the edit's new CAS base. Without that rebase the edit's next push
+ * carries a stale base, the server rejects it (resolveHabitDefs), and the edit
+ * can never land — it would be protected here only to starve in the ack path.
  *
  * Exported for direct unit coverage.
  */
@@ -89,14 +133,18 @@ export function mergeHabitDefs(
     const localEmpty = !local.habitDefs || local.habitDefs.length === 0;
     const serverWins =
       localEmpty ||
-      serverV > localV ||
       (!local.habitDefsDirty &&
-        serverV === localV &&
-        JSON.stringify(incoming.habitDefs) > JSON.stringify(local.habitDefs));
+        (serverV > localV ||
+          (serverV === localV &&
+            JSON.stringify(incoming.habitDefs) > JSON.stringify(local.habitDefs))));
     if (serverWins) {
       habitDefs = incoming.habitDefs;
       habitDefsVersion = serverV;
       habitDefsDirty = false; // we just adopted the server's list
+    } else if (local.habitDefsDirty && serverV > localV) {
+      // Keep the unpushed edit, but rebase it onto the version it now conflicts
+      // with so the retry's CAS token is current and the edit is accepted.
+      habitDefsVersion = serverV;
     }
   }
 
@@ -145,8 +193,106 @@ export function migrateHabitsState(persisted: unknown, version: number): unknown
     if (typeof s.habitDefsVersion !== "number") s.habitDefsVersion = 0;
     if (typeof s.habitDefsDirty !== "boolean") s.habitDefsDirty = false;
   }
+  if (version < 4) {
+    // v3 -> v4: add dirty-key tracking (BUG-01). Purely additive — nothing
+    // existing is read or rewritten. Starting empty is safe because the first
+    // push after any load is still a full-map push (see useSync), so local
+    // work that predates this migration still reaches the server.
+    if (!s.dirty || typeof s.dirty !== "object") s.dirty = emptyDirty();
+  }
+  if (version < 5) {
+    // v4 -> v5: BUG-13. Before the tri-state redesign (commit 989297d,
+    // 2026-08-26 15:14 ET) `false` was written by the old binary toggle and
+    // meant "unchecked", not an explicit "missed" — but the tri-state UI now
+    // renders any `false` as a red X. Remove every habit date key whose value
+    // is `false` and whose date is on/before the cutoff, and mark those
+    // removals dirty so the next push tombstones them on the server too (S1's
+    // delta/tombstone design — the same mechanism clearHabit uses). Dates from
+    // 2026-08-26 onward are genuine post-redesign misses and are left alone.
+    //
+    // B2 mitigation: the cutoff is inferred from the commit timestamp, not a
+    // confirmed deploy date, and this migration is one-shot and destructive
+    // (both locally and, via the tombstone, server-side) with no second
+    // pass. Every removed {habitId, date} is copied into `habitFalseBackupV5`
+    // before deletion, so a wrong cutoff can still be recovered by hand. This
+    // field is persisted locally but deliberately never synced — see
+    // getSyncPayload/getSyncDelta/partialize below, and it is excluded there
+    // on purpose so a backup of a deletion is never itself pushed anywhere.
+    const CUTOFF = "2026-08-25";
+    const habits = (s.habits as Record<string, DailyHabitRecord>) || {};
+    const dirty: DirtyState =
+      s.dirty && typeof s.dirty === "object" ? (s.dirty as DirtyState) : emptyDirty();
+    const dirtyHabits: Record<string, DirtyKeys> = { ...dirty.habits };
+    const existingBackup =
+      s.habitFalseBackupV5 && typeof s.habitFalseBackupV5 === "object"
+        ? (s.habitFalseBackupV5 as Record<string, DailyHabitRecord>)
+        : {};
+    const backup: Record<string, DailyHabitRecord> = Object.fromEntries(
+      Object.entries(existingBackup).map(([id, rec]) => [id, { ...rec }]),
+    );
+    for (const [id, rec] of Object.entries(habits)) {
+      if (!rec) continue;
+      const nextRec = { ...rec };
+      let touched = false;
+      for (const [date, value] of Object.entries(rec)) {
+        if (value === false && date <= CUTOFF) {
+          delete nextRec[date];
+          dirtyHabits[id] = withKey(dirtyHabits[id], date);
+          backup[id] = { ...(backup[id] || {}), [date]: false };
+          touched = true;
+        }
+      }
+      if (touched) habits[id] = nextRec;
+    }
+    s.habits = habits;
+    s.dirty = { ...dirty, habits: dirtyHabits };
+    s.habitFalseBackupV5 = backup;
+  }
   return s;
 }
+
+// ---------------------------------------------------------------------------
+// Per-account local persistence (BUG-03). One fixed localStorage key meant a
+// second account signing in on the same device inherited — and then pushed —
+// the previous account's data. Each account now gets its own key; the original
+// unscoped key is adopted once, by the first account that loads, so the
+// existing install keeps its data.
+// ---------------------------------------------------------------------------
+
+/** The original, un-scoped key. Still written by older cached bundles. */
+export const LEGACY_STORE_KEY = "workout-store";
+/** Marks which account already adopted the legacy key's contents. */
+const LEGACY_CLAIM_KEY = "workout-store:adopted-by";
+/** Throwaway key persist is pointed at while resetting in-memory state during
+ *  an account switch (B1), so the reset's setItem can never land on the
+ *  outgoing account's real key or a not-yet-rehydrated incoming key. */
+const RESET_SCRATCH_KEY = "workout-store:__scratch__";
+
+export const storeKeyForAccount = (accountId: string | null): string =>
+  accountId ? `${LEGACY_STORE_KEY}:${accountId}` : `${LEGACY_STORE_KEY}:signed-out`;
+
+const safeLocalStorage = (): Storage | null => {
+  try {
+    return typeof window !== "undefined" ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Key whose writes are mirrored back to the legacy key, so an older cached
+ *  bundle that still reads `workout-store` never sees a frozen snapshot. */
+let mirrorToLegacyFrom: string | null = null;
+
+const accountStorage = {
+  getItem: (name: string) => safeLocalStorage()?.getItem(name) ?? null,
+  setItem: (name: string, value: string) => {
+    const ls = safeLocalStorage();
+    if (!ls) return;
+    ls.setItem(name, value);
+    if (name === mirrorToLegacyFrom) ls.setItem(LEGACY_STORE_KEY, value);
+  },
+  removeItem: (name: string) => safeLocalStorage()?.removeItem(name),
+};
 
 interface WorkoutState {
   // Data
@@ -171,6 +317,14 @@ interface WorkoutState {
   habitDefsVersion: number;
   // True when there's a local habitDefs edit not yet acknowledged by the server.
   habitDefsDirty: boolean;
+  // Keys changed on this device since its last acked push (BUG-01). Persisted,
+  // so an edit made offline still pushes after a reload.
+  dirty: DirtyState;
+  // B2 mitigation: every {habitId, date: false} deleted by the v4->v5 cutoff
+  // migration, kept so a wrong cutoff can be restored by hand. Persisted
+  // locally, deliberately NEVER sent to the server — see getSyncPayload,
+  // getSyncDelta and partialize.
+  habitFalseBackupV5: Record<string, DailyHabitRecord>;
 
   // UI state
   mounted: boolean;
@@ -188,6 +342,13 @@ interface WorkoutState {
   setMounted: (mounted: boolean) => void;
   toggleHabit: (habitId: string, date: string) => void;
   setHabit: (habitId: string, date: string, done: boolean) => void;
+  /**
+   * Clear one habit date back to UNRECORDED (undefined) — not to the tri-state
+   * "missed" (false). The removal is tracked as dirty and leaves the client as
+   * a tombstone on the next push, so the server deletes the key rather than
+   * re-merging its old value. This is the deletion entry point for BUG-13/14.
+   */
+  clearHabit: (habitId: string, date: string) => void;
 
   // Habit-list management (Settings)
   addHabit: (label: string) => void;
@@ -218,6 +379,8 @@ interface WorkoutState {
     ouraLastSynced?: string;
     eightSleepLastSynced?: string;
   }) => void;
+  /** Full-store snapshot. Used only for the one bootstrap push per load, which
+   *  is what carries local work the server has never seen. */
   getSyncPayload: () => {
     completions: CompletionRecord;
     logs: WorkoutLogRecord;
@@ -227,6 +390,13 @@ interface WorkoutState {
     habitDefs: HabitDef[];
     habitDefsVersion: number;
   };
+  /** Only the keys this device changed since its last acked push, plus
+   *  tombstones for the ones it removed. Every push after the bootstrap one. */
+  getSyncDelta: () => SyncPayload & { habitDefs: HabitDef[]; habitDefsVersion: number };
+  /** Retire the dirty marks a successful push settled. A key is only cleared if
+   *  its current value still matches what was sent, so an edit made while the
+   *  request was in flight stays dirty and goes out on the next push. */
+  clearDirty: (sent: SyncPayload) => void;
 }
 
 const DEFAULT_NOTIF_SETTINGS: NotificationSettings = {
@@ -257,32 +427,47 @@ export const useWorkoutStore = create<WorkoutState>()(
       habitDefs: seedDefaultHabits(),
       habitDefsVersion: 0,
       habitDefsDirty: false,
+      dirty: emptyDirty(),
+      habitFalseBackupV5: {},
       mounted: false,
 
       // Actions
       toggleCompletion: (key) =>
         set((state) => ({
           completions: { ...state.completions, [key]: !state.completions[key] },
+          dirty: { ...state.dirty, completions: withKey(state.dirty.completions, key) },
         })),
 
       saveLog: (key, entry) =>
         set((state) => ({
           logs: { ...state.logs, [key]: entry },
+          dirty: { ...state.dirty, logs: withKey(state.dirty.logs, key) },
         })),
 
-      setLevel: (level) => set({ level }),
+      setLevel: (level) => set((state) => ({ level, dirty: { ...state.dirty, level: true } })),
 
       setTheme: (theme) => set({ theme }),
 
-      setRecoveryData: (recoveryData) => set({ recoveryData }),
+      setRecoveryData: (recoveryData) =>
+        set((state) => ({
+          recoveryData,
+          dirty: { ...state.dirty, recovery: withKeys(state.dirty.recovery, Object.keys(recoveryData)) },
+        })),
 
       mergeRecoveryData: (partial) =>
         set((state) => {
           const merged = { ...state.recoveryData };
+          const touched: string[] = [];
           for (const [key, value] of Object.entries(partial)) {
-            if (value) merged[key] = value;
+            if (value) {
+              merged[key] = value;
+              touched.push(key);
+            }
           }
-          return { recoveryData: merged };
+          return {
+            recoveryData: merged,
+            dirty: { ...state.dirty, recovery: withKeys(state.dirty.recovery, touched) },
+          };
         }),
 
       setNotifSettings: (notifSettings) => set({ notifSettings }),
@@ -299,6 +484,10 @@ export const useWorkoutStore = create<WorkoutState>()(
             ...state.habits,
             [habitId]: { ...(state.habits[habitId] || {}), [date]: !state.habits[habitId]?.[date] },
           },
+          dirty: {
+            ...state.dirty,
+            habits: { ...state.dirty.habits, [habitId]: withKey(state.dirty.habits[habitId], date) },
+          },
         })),
 
       setHabit: (habitId, date, done) =>
@@ -307,7 +496,25 @@ export const useWorkoutStore = create<WorkoutState>()(
             ...state.habits,
             [habitId]: { ...(state.habits[habitId] || {}), [date]: done },
           },
+          dirty: {
+            ...state.dirty,
+            habits: { ...state.dirty.habits, [habitId]: withKey(state.dirty.habits[habitId], date) },
+          },
         })),
+
+      clearHabit: (habitId, date) =>
+        set((state) => {
+          const rec = { ...(state.habits[habitId] || {}) };
+          delete rec[date];
+          return {
+            habits: { ...state.habits, [habitId]: rec },
+            // Dirty-but-absent is what turns into a tombstone in getSyncDelta.
+            dirty: {
+              ...state.dirty,
+              habits: { ...state.dirty.habits, [habitId]: withKey(state.dirty.habits[habitId], date) },
+            },
+          };
+        }),
 
       addHabit: (label) =>
         set((state) => {
@@ -370,6 +577,13 @@ export const useWorkoutStore = create<WorkoutState>()(
           // version) and reject/conflict (server returns the winning list).
           if (acked.habitDefs === undefined || acked.habitDefsVersion === undefined) return {};
           if (!habitDefsEqual(state.habitDefs, sent)) return {};
+          if (state.habitDefsDirty && !habitDefsEqual(acked.habitDefs, sent)) {
+            // BUG-02: REJECTED, not accepted — the server kept a different list
+            // because our CAS base was stale. Adopting it here would delete the
+            // edit outright. Keep it, take the server's version as the new base,
+            // and stay dirty so the caller re-sends it against that base.
+            return { habitDefsVersion: acked.habitDefsVersion, habitDefsDirty: true };
+          }
           return {
             habitDefs: acked.habitDefs,
             habitDefsVersion: acked.habitDefsVersion,
@@ -379,8 +593,31 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       hydrateFromSync: (data) =>
         set((state) => {
+          // BUG-01/BUG-04 merge rule for hydrate: a key this device has changed
+          // but not yet had acked (dirty) keeps its LOCAL value — including
+          // "locally deleted" — and everything else takes the server's value.
+          // Prefer-true stays underneath as the pre-dirty-tracking safety net
+          // for completions (where false only ever means "not yet"), but it is
+          // wrong for habits, which since the tri-state redesign use false to
+          // mean an explicit "missed" the user typed on purpose.
+          const restoreLocal = <T,>(
+            merged: Record<string, T>,
+            local: Record<string, T>,
+            dirtyKeys: DirtyKeys,
+          ): Record<string, T> => {
+            for (const key of Object.keys(dirtyKeys)) {
+              if (key in local) merged[key] = local[key];
+              else delete merged[key];
+            }
+            return merged;
+          };
+
           // V19: prefer-true merge for completions. See mergeCompletionsPreferTrue above.
-          const mergedCompletions = mergeCompletionsPreferTrue(state.completions, data.completions);
+          const mergedCompletions = restoreLocal(
+            mergeCompletionsPreferTrue(state.completions, data.completions),
+            state.completions,
+            state.dirty.completions,
+          );
 
           // Deep-merge recovery: merge each date's entry, not just top-level keys
           const mergedRecovery = { ...state.recoveryData };
@@ -397,23 +634,40 @@ export const useWorkoutStore = create<WorkoutState>()(
               }
             }
           }
-          // Prefer-true merge for daily habit toggles, same rationale as completions:
-          // protects an in-flight local tap from being overwritten by stale server state.
-          const mergeDailyHabit = (local: DailyHabitRecord, incoming?: DailyHabitRecord): DailyHabitRecord => {
+          // BUG-04: dirty-wins, NOT prefer-true. `false` here is an explicit
+          // "missed" the user tapped, so ORing it against a stale server `true`
+          // silently un-misses the day. A date this device changed and hasn't
+          // had acked keeps its local value (or stays deleted); any other date
+          // takes the server's, which is the converged value.
+          const mergeDailyHabit = (
+            local: DailyHabitRecord,
+            incoming: DailyHabitRecord | undefined,
+            dirtyDates: DirtyKeys,
+          ): DailyHabitRecord => {
             const merged: DailyHabitRecord = { ...local };
             if (incoming) {
               for (const [date, value] of Object.entries(incoming)) {
-                merged[date] = Boolean(merged[date]) || Boolean(value);
+                if (dirtyDates[date]) continue; // pending local edit wins
+                merged[date] = value;
               }
             }
             return merged;
           };
 
-          // Merge the data-driven habits map (prefer-true, like completions).
           const mergedHabits: Record<string, DailyHabitRecord> = { ...state.habits };
           if (data.habits) {
             for (const [id, rec] of Object.entries(data.habits)) {
-              mergedHabits[id] = mergeDailyHabit(mergedHabits[id] || {}, rec);
+              const localRec = mergedHabits[id];
+              // Dirty marks only mean something against a record we actually
+              // hold. clearHabit() removes a DATE and leaves the record object
+              // in place, so "no record at all" is never a deletion — it's a
+              // habit this device has simply never seen, and the server's copy
+              // is the only copy.
+              mergedHabits[id] = mergeDailyHabit(
+                localRec || {},
+                rec,
+                localRec ? state.dirty.habits[id] || {} : {},
+              );
             }
           }
           // One-way migration of legacy top-level habit fields: fill only the
@@ -446,8 +700,10 @@ export const useWorkoutStore = create<WorkoutState>()(
 
           return {
             completions: mergedCompletions,
-            logs: { ...state.logs, ...(data.logs || {}) },
-            level: data.level || state.level,
+            logs: restoreLocal({ ...state.logs, ...(data.logs || {}) }, state.logs, state.dirty.logs),
+            // A level this device changed but hasn't had acked isn't overwritten
+            // by the server copy that predates it (BUG-01, the `level` case).
+            level: state.dirty.level ? state.level : (data.level || state.level),
             recoveryData: mergedRecovery,
             habits: mergedHabits,
             habitDefs: mergedDefs.habitDefs,
@@ -464,9 +720,105 @@ export const useWorkoutStore = create<WorkoutState>()(
         // based on); the server mints the next version from it.
         return { completions, logs, level, recovery: recoveryData, habits, habitDefs, habitDefsVersion };
       },
+
+      getSyncDelta: () => {
+        const { completions, logs, recoveryData, habits, level, habitDefs, habitDefsVersion, dirty } = get();
+        // habitDefs is always sent: it is already CAS-versioned server-side, so
+        // it is not part of the last-write-wins problem, and sending it keeps
+        // the ack path (applyHabitDefsAck) working exactly as before.
+        const delta: SyncPayload & { habitDefs: HabitDef[]; habitDefsVersion: number } = {
+          syncMode: "delta",
+          habitDefs,
+          habitDefsVersion,
+        };
+        const tombstones: SyncTombstones = {};
+
+        // A dirty key present in the map is a write; a dirty key missing from
+        // the map is a deletion.
+        const split = <T,>(dirtyKeys: DirtyKeys, source: Record<string, T>) => {
+          const values: Record<string, T> = {};
+          const removed: string[] = [];
+          for (const key of Object.keys(dirtyKeys)) {
+            if (key in source) values[key] = source[key];
+            else removed.push(key);
+          }
+          return { values, removed };
+        };
+
+        const c = split(dirty.completions, completions);
+        if (Object.keys(c.values).length) delta.completions = c.values;
+        if (c.removed.length) tombstones.completions = c.removed;
+
+        const l = split(dirty.logs, logs);
+        if (Object.keys(l.values).length) delta.logs = l.values;
+        if (l.removed.length) tombstones.logs = l.removed;
+
+        const r = split(dirty.recovery, recoveryData);
+        if (Object.keys(r.values).length) delta.recovery = r.values;
+        if (r.removed.length) tombstones.recovery = r.removed;
+
+        const habitWrites: Record<string, DailyHabitRecord> = {};
+        const habitDrops: Record<string, string[]> = {};
+        for (const [habitId, dates] of Object.entries(dirty.habits)) {
+          const h = split(dates, habits[habitId] || {});
+          if (Object.keys(h.values).length) habitWrites[habitId] = h.values;
+          if (h.removed.length) habitDrops[habitId] = h.removed;
+        }
+        if (Object.keys(habitWrites).length) delta.habits = habitWrites;
+        if (Object.keys(habitDrops).length) tombstones.habits = habitDrops;
+
+        if (dirty.level) delta.level = level;
+        if (Object.keys(tombstones).length) delta.tombstones = tombstones;
+        return delta;
+      },
+
+      clearDirty: (sent) =>
+        set((state) => {
+          const next: DirtyState = {
+            completions: { ...state.dirty.completions },
+            logs: { ...state.dirty.logs },
+            recovery: { ...state.dirty.recovery },
+            habits: Object.fromEntries(
+              Object.entries(state.dirty.habits).map(([id, dates]) => [id, { ...dates }]),
+            ),
+            level: state.dirty.level,
+          };
+
+          // Retire a mark only when the store still holds exactly what went out;
+          // anything the user changed mid-flight stays dirty for the next push.
+          const settle = (
+            marks: DirtyKeys,
+            sentValues: Record<string, unknown> | undefined,
+            sentRemovals: string[] | undefined,
+            current: Record<string, unknown>,
+          ) => {
+            for (const [key, value] of Object.entries(sentValues || {})) {
+              if (current[key] === value) delete marks[key];
+            }
+            for (const key of sentRemovals || []) {
+              if (!(key in current)) delete marks[key];
+            }
+          };
+
+          const t = sent.tombstones;
+          settle(next.completions, sent.completions, t?.completions, state.completions);
+          settle(next.logs, sent.logs, t?.logs, state.logs);
+          settle(next.recovery, sent.recovery, t?.recovery, state.recoveryData);
+          for (const [habitId, dates] of Object.entries(next.habits)) {
+            settle(dates, sent.habits?.[habitId], t?.habits?.[habitId], state.habits[habitId] || {});
+            if (Object.keys(dates).length === 0) delete next.habits[habitId];
+          }
+          if (next.level && sent.level !== undefined && state.level === sent.level) next.level = false;
+
+          return { dirty: next };
+        }),
     }),
     {
-      name: "workout-store",
+      // Starts on the legacy key so an existing install loads exactly as it did
+      // before; setPersistAccount() below re-points it at the per-account key
+      // as soon as the signed-in account is known (BUG-03).
+      name: LEGACY_STORE_KEY,
+      storage: createJSONStorage(() => accountStorage),
       partialize: (state) => ({
         completions: state.completions,
         logs: state.logs,
@@ -480,9 +832,87 @@ export const useWorkoutStore = create<WorkoutState>()(
         habitDefsVersion: state.habitDefsVersion,
         // Persisted so an edit made offline survives a reload and still pushes.
         habitDefsDirty: state.habitDefsDirty,
+        // Same reason: an offline tap must still be known to be unpushed after
+        // a reload, or its delta would never be sent.
+        dirty: state.dirty,
+        // B2 mitigation: persisted so it survives a reload, but intentionally
+        // NOT part of getSyncPayload/getSyncDelta — it never leaves this
+        // device.
+        habitFalseBackupV5: state.habitFalseBackupV5,
       }),
-      version: 3,
+      version: 5,
       migrate: (persisted, version) => migrateHabitsState(persisted, version) as unknown as WorkoutState,
     }
   )
 );
+
+/** Data fields reset on an account change. UI-only state (theme, selectedDay,
+ *  mounted) is deliberately left alone — it isn't anyone's data. */
+const freshAccountState = () => ({
+  completions: {},
+  logs: {},
+  level: "beginner" as Level,
+  recoveryData: {},
+  notifSettings: DEFAULT_NOTIF_SETTINGS,
+  habits: {},
+  habitDefs: seedDefaultHabits(),
+  habitDefsVersion: 0,
+  habitDefsDirty: false,
+  dirty: emptyDirty(),
+  habitFalseBackupV5: {},
+  ouraLastSynced: null,
+  eightSleepLastSynced: null,
+});
+
+/**
+ * Point local persistence at `accountId`'s own key and load that account's data
+ * (BUG-03). Must run — and settle — before any sync is enabled for the account,
+ * otherwise whatever the previous account left behind gets pushed into the new
+ * account's server record.
+ *
+ * The first account to call this adopts the contents of the original un-scoped
+ * key, so the existing install keeps its history. The claim is recorded so a
+ * second account on the same device can never adopt it too. Writes for the
+ * adopting account are mirrored back to the legacy key, so an older cached PWA
+ * bundle that still reads `workout-store` doesn't see a frozen snapshot.
+ */
+export async function setPersistAccount(accountId: string | null): Promise<void> {
+  const key = storeKeyForAccount(accountId);
+  const persistApi = useWorkoutStore.persist;
+  if (persistApi.getOptions().name === key) return;
+
+  const ls = safeLocalStorage();
+  if (ls && accountId) {
+    const claimedBy = ls.getItem(LEGACY_CLAIM_KEY);
+    const legacy = ls.getItem(LEGACY_STORE_KEY);
+    if (!claimedBy && legacy !== null && ls.getItem(key) === null) {
+      ls.setItem(key, legacy);
+      ls.setItem(LEGACY_CLAIM_KEY, accountId);
+      mirrorToLegacyFrom = key;
+    } else if (claimedBy === accountId) {
+      mirrorToLegacyFrom = key;
+    } else {
+      mirrorToLegacyFrom = null;
+    }
+  } else {
+    mirrorToLegacyFrom = null;
+  }
+
+  // Drop the outgoing account's data BEFORE rehydrating: persist's default
+  // merge is a shallow spread over current state, so anything the incoming
+  // account has no value for would otherwise survive the switch.
+  //
+  // B1: useWorkoutStore.setState is persist-wrapped — it calls setItem()
+  // against whatever key persistApi.getOptions().name is AT THAT MOMENT. The
+  // old code called setState(fresh) while still pointed at the OUTGOING
+  // key, so the empty reset blob was serialized straight over the account
+  // being left (wiping its data and its unpushed `dirty` marks) and
+  // rehydrate() never repaired it (v5 -> v5 isn't a migration, so hydrate()
+  // never re-runs setItem). Point persist at a scratch key for the reset
+  // itself, so neither the outgoing key nor the not-yet-rehydrated incoming
+  // key can be clobbered by the fresh/empty state.
+  persistApi.setOptions({ name: RESET_SCRATCH_KEY });
+  useWorkoutStore.setState(freshAccountState());
+  persistApi.setOptions({ name: key });
+  await persistApi.rehydrate();
+}
