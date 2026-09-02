@@ -138,4 +138,63 @@ describe("audio module", () => {
     await releaseWakeLock(sentinel);
     expect(release).toHaveBeenCalled();
   });
+
+  // BUG-16: requestWakeLock() must wire an onRelease callback to the
+  // sentinel's own 'release' event, so a caller's wakeLockRef can be nulled
+  // when the OS/browser silently revokes the lock (the real Wake Lock API
+  // sentinel is an EventTarget that fires this itself).
+  it("requestWakeLock wires an onRelease callback to the sentinel's 'release' event", async () => {
+    const release = vi.fn(async () => {});
+    const listeners = new Map<string, () => void>();
+    const addEventListener = vi.fn((type: string, cb: () => void) => {
+      listeners.set(type, cb);
+    });
+    const request = vi.fn(async () => ({ release, addEventListener }));
+    vi.stubGlobal("navigator", { wakeLock: { request } } as unknown as Navigator);
+    const { requestWakeLock } = await import("@/lib/audio");
+
+    const onRelease = vi.fn();
+    await requestWakeLock(onRelease);
+    expect(addEventListener).toHaveBeenCalledWith("release", expect.any(Function));
+
+    // Simulate the OS/browser firing the sentinel's own 'release' event.
+    listeners.get("release")?.();
+    expect(onRelease).toHaveBeenCalledTimes(1);
+  });
+
+  it("requestWakeLock does not throw when the sentinel has no addEventListener", async () => {
+    const release = vi.fn(async () => {});
+    const request = vi.fn(async () => ({ release }));
+    vi.stubGlobal("navigator", { wakeLock: { request } } as unknown as Navigator);
+    const { requestWakeLock } = await import("@/lib/audio");
+    await expect(requestWakeLock(vi.fn())).resolves.not.toBeNull();
+  });
+
+  // BUG-07: only one RepTimer/CircuitTimer instance should be "armed"
+  // (claimed the active-timer slot) at a time. Whoever claims last should
+  // force-stop whoever held it before.
+  it("claimActiveTimer force-stops the previous holder, releaseActiveTimer clears the slot", async () => {
+    const { claimActiveTimer, releaseActiveTimer } = await import("@/lib/audio");
+    const tokenA = {};
+    const tokenB = {};
+    const stopA = vi.fn();
+    const stopB = vi.fn();
+
+    claimActiveTimer(tokenA, stopA);
+    expect(stopA).not.toHaveBeenCalled();
+
+    claimActiveTimer(tokenB, stopB);
+    expect(stopA).toHaveBeenCalledTimes(1);
+    expect(stopB).not.toHaveBeenCalled();
+
+    // Releasing a token that no longer holds the slot is a no-op.
+    releaseActiveTimer(tokenA);
+    claimActiveTimer(tokenA, stopA);
+    expect(stopB).toHaveBeenCalledTimes(1);
+
+    releaseActiveTimer(tokenA);
+    claimActiveTimer(tokenA, vi.fn());
+    // No second holder to stop this time - claiming after a clean release
+    // should not call the just-registered stop function.
+  });
 });

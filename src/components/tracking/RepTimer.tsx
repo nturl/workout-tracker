@@ -13,6 +13,8 @@ import {
   requestWakeLock,
   releaseWakeLock,
   startCountdownClock,
+  claimActiveTimer,
+  releaseActiveTimer,
   type ClockController,
 } from "@/lib/audio";
 import { CountdownIntro } from "./CountdownIntro";
@@ -40,6 +42,10 @@ interface RepTimerProps {
   protocol?: RepProtocol;
   exerciseName?: string;
   onComplete?: (result: { reps: number; tutSeconds: number }) => void;
+  // BUG-07: false while the owning SessionCard is collapsed. Collapsing a
+  // card should pause its timer instead of letting it keep ticking, hidden,
+  // underneath.
+  active?: boolean;
 }
 
 type Phase = "idle" | "up" | "down" | "done";
@@ -54,12 +60,18 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete }: RepTimerProps) {
+export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete, active = true }: RepTimerProps) {
   const timerSettings = useWorkoutStore((s) => s.timerSettings);
   const onCompleteRef = useRef(onComplete);
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
+
+  // BUG-07: a stable per-instance identity for the module-level active-timer
+  // registry (see src/lib/audio.ts). Whichever timer claims the slot last
+  // force-stops whoever held it before, so at most one RepTimer/CircuitTimer
+  // can be running/counting-down across the whole app at a time.
+  const timerTokenRef = useRef({});
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [phaseSecondsLeft, setPhaseSecondsLeft] = useState(protocol.upSeconds);
@@ -94,20 +106,49 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
   // Exercise/protocol changes reset this timer via a remount: SessionCard
   // keys the RepTimer on the active slug + protocol, so all state re-inits.
 
-  // Cleanup wake lock on unmount
+  // Cleanup wake lock + active-timer claim on unmount
   useEffect(() => {
+    const token = timerTokenRef.current;
     return () => {
       releaseWakeLock(wakeLockRef.current).catch(() => {});
       wakeLockRef.current = null;
+      releaseActiveTimer(token);
     };
   }, []);
 
-  // Re-acquire wake lock when page becomes visible again
+  // BUG-07: collapsing the owning SessionCard pauses this timer instead of
+  // leaving it running invisibly underneath. Adjusts state during render
+  // (React's documented "adjusting state when a prop changes" pattern -
+  // see react.dev/reference/react/useState#storing-information-from-previous-renders)
+  // rather than in an effect, so this doesn't cost an extra render pass or
+  // call setState from inside a passive effect.
+  const [prevActive, setPrevActive] = useState(active);
+  if (prevActive !== active) {
+    setPrevActive(active);
+    if (!active) {
+      setRunning(false);
+      setShowCountdown(false);
+    }
+  }
+
+  // Release the active-timer registry slot on the same transition. Plain
+  // external side effect (no React state involved), so a normal effect is
+  // fine here.
+  useEffect(() => {
+    if (!active) releaseActiveTimer(timerTokenRef.current);
+  }, [active]);
+
+  // Re-acquire wake lock when page becomes visible again. BUG-16 fix:
+  // requestWakeLock now wires a 'release' listener that nulls wakeLockRef.current
+  // when the OS/browser silently revokes the lock, so this guard can actually
+  // fire again after the first grant instead of being permanently dead.
   useEffect(() => {
     if (!running || !timerSettings.wakeLock) return;
     const handler = async () => {
       if (document.visibilityState === "visible" && !wakeLockRef.current) {
-        wakeLockRef.current = await requestWakeLock();
+        wakeLockRef.current = await requestWakeLock(() => {
+          wakeLockRef.current = null;
+        });
       }
     };
     document.addEventListener("visibilitychange", handler);
@@ -166,6 +207,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
           setCurrentRep(completedRep);
           setPhase("done");
           setRunning(false);
+          releaseActiveTimer(timerTokenRef.current);
           onCompleteRef.current?.({ reps: completedRep, tutSeconds: tutSecondsRef.current + 1 });
           return;
         }
@@ -195,11 +237,24 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
     setRunning(true);
   }, [protocol.upSeconds, triggerRepBeep]);
 
+  // BUG-07: force-stop this instance without losing set progress - used when
+  // another timer claims the active-timer slot out from under us.
+  const forceStop = useCallback(() => {
+    setRunning(false);
+    setShowCountdown(false);
+  }, []);
+
   const start = useCallback(async () => {
     if (timerSettings.audio) unlockAudio();
     if (timerSettings.wakeLock && !wakeLockRef.current) {
-      wakeLockRef.current = await requestWakeLock();
+      wakeLockRef.current = await requestWakeLock(() => {
+        wakeLockRef.current = null;
+      });
     }
+    // Claim the app-wide active-timer slot the moment the user presses play,
+    // not only once running becomes true - this also stops another timer
+    // that's still mid-countdown.
+    claimActiveTimer(timerTokenRef.current, forceStop);
     if (phase === "idle" || phase === "done") {
       // Fresh start: show 3-2-1 intro; beginTimer fires when it completes.
       setShowCountdown(true);
@@ -207,10 +262,11 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
       // Resuming from pause: no intro.
       setRunning(true);
     }
-  }, [phase, timerSettings.audio, timerSettings.wakeLock]);
+  }, [phase, timerSettings.audio, timerSettings.wakeLock, forceStop]);
 
   const pause = useCallback(() => {
     setRunning(false);
+    releaseActiveTimer(timerTokenRef.current);
   }, []);
 
   const reset = useCallback(async () => {
@@ -221,6 +277,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
     setCurrentRep(0);
     setTutSeconds(0);
     tutSecondsRef.current = 0;
+    releaseActiveTimer(timerTokenRef.current);
     await releaseWakeLock(wakeLockRef.current);
     wakeLockRef.current = null;
   }, [protocol.upSeconds]);
@@ -229,6 +286,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
     triggerSetCompleteBeep();
     setRunning(false);
     setPhase("done");
+    releaseActiveTimer(timerTokenRef.current);
     onCompleteRef.current?.({ reps: currentRep, tutSeconds });
   }, [triggerSetCompleteBeep, currentRep, tutSeconds]);
 
@@ -237,7 +295,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
     : phase === "done" ? 100 : 0;
 
   return (
-    <div className="rounded-card overflow-hidden relative" style={{ background: "var(--timer-bg, #1a1a2e)" }}>
+    <div className="rounded-card overflow-hidden relative" style={{ background: "var(--timer-bg)" }}>
       {showCountdown && <CountdownIntro onComplete={beginTimer} />}
 
       {/* Phase-tinted ambient glow */}
@@ -277,7 +335,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
                   {protocol.upSeconds}s up · {protocol.downSeconds}s down
                 </p>
-                <p className="text-4xl font-display font-bold tabular-nums tracking-tight text-white mt-1.5">
+                <p className="text-4xl font-bold tabular-nums tracking-tight text-white mt-1.5">
                   {totalReps} reps
                 </p>
                 <p className="text-[11px] mt-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -303,7 +361,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
                 >
                   {phaseLabel}
                 </p>
-                <p className="font-display font-bold tabular-nums text-white" style={{ fontSize: "4rem", lineHeight: 1.05, letterSpacing: "-0.03em" }}>
+                <p className="font-bold tabular-nums text-white" style={{ fontSize: "4rem", lineHeight: 1.05, letterSpacing: "-0.03em" }}>
                   {phaseSecondsLeft}
                 </p>
                 <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>

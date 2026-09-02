@@ -234,7 +234,13 @@ html {
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    /* `none`, not translateY(0) - a computed transform other than `none`
+       becomes a new containing block for any `position: fixed` descendant.
+       Combined with fill-mode: both/forwards that would hold the transform
+       forever, trapping any fixed-positioned overlay mounted inside (see
+       BUG-29 in notes/BUGS-2026-09-01.md). `none` is animatable to/from a
+       translate the same as an explicit identity transform. */
+    transform: none;
   }
 }
 
@@ -245,16 +251,28 @@ html {
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    /* S3 (pre-ship review, same defect BUG-29 fixed for fade-up above):
+       scale(1) is a non-`none` computed transform, and combined with
+       fill-mode: both it held forever, making any .anim-scale-in element a
+       permanent containing block for a `position: fixed` descendant. `none`
+       is animatable to/from scale(0.96) the same as scale(1) would be, and
+       matches the plain, un-animated CSS state. */
+    transform: none;
   }
 }
 
+/* fill-mode: backwards (not both/forwards) - applies the `from` state during
+   any animation-delay (needed for .anim-stagger rows), but does not hold the
+   `to` state forever once the animation ends, so this can no longer become a
+   permanent containing block for a `position: fixed` descendant (BUG-29).
+   The element's post-animation appearance is unchanged: the `to` keyframe
+   (opacity: 1, transform: none) matches the plain, un-animated CSS state. */
 .anim-fade-up {
-  animation: fade-up var(--dur-slow) var(--ease-out-quart) both;
+  animation: fade-up var(--dur-slow) var(--ease-out-quart) backwards;
 }
 
 .anim-scale-in {
-  animation: scale-in var(--dur-base) var(--ease-out-quart) both;
+  animation: scale-in var(--dur-base) var(--ease-out-quart) backwards;
 }
 
 .anim-stagger > * {

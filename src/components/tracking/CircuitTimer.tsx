@@ -14,6 +14,10 @@ import {
   playCircuitComplete,
   vibrateRep,
   vibrateSetComplete,
+  requestWakeLock,
+  releaseWakeLock,
+  claimActiveTimer,
+  releaseActiveTimer,
   type ClockController,
 } from "@/lib/audio";
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
@@ -74,11 +78,19 @@ interface CircuitTimerProps {
   // position in the `exercises` array. Used by SessionCard to auto-check off
   // functional-fitness exercises as the timer advances past them.
   onExerciseComplete?: (index: number) => void;
+  // BUG-07: false while the owning SessionCard is collapsed. Collapsing a
+  // card should pause its timer instead of letting it keep ticking, hidden,
+  // underneath.
+  active?: boolean;
 }
 
 type Phase = "idle" | "work" | "rest" | "done";
 
-export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseComplete }: CircuitTimerProps) {
+interface WakeLockSentinelLike {
+  release: () => Promise<void>;
+}
+
+export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseComplete, active = true }: CircuitTimerProps) {
   const timerSettings = useWorkoutStore((s) => s.timerSettings);
   const [selectedRounds, setSelectedRounds] = useState(defaultRounds);
   const [currentRound, setCurrentRound] = useState(1);
@@ -94,6 +106,11 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
   const [running, setRunning] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
   const clockRef = useRef<ClockController | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
+
+  // BUG-07: stable per-instance identity for the module-level active-timer
+  // registry (src/lib/audio.ts) - see RepTimer.tsx for the mirrored logic.
+  const timerTokenRef = useRef({});
 
   const onExerciseCompleteRef = useRef(onExerciseComplete);
   useEffect(() => {
@@ -133,6 +150,56 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
     if (timerSettings.audio) playCircuitComplete();
     if (timerSettings.haptics) vibrateSetComplete();
   }, [timerSettings.audio, timerSettings.haptics]);
+
+  // BUG-06: mirrors RepTimer.tsx's wake-lock lifecycle, which CircuitTimer
+  // never had - the screen could lock/dim mid-circuit even with "Keep screen
+  // awake" on. Cleanup on unmount + release the active-timer claim.
+  useEffect(() => {
+    const token = timerTokenRef.current;
+    return () => {
+      releaseWakeLock(wakeLockRef.current).catch(() => {});
+      wakeLockRef.current = null;
+      releaseActiveTimer(token);
+    };
+  }, []);
+
+  // BUG-07: collapsing the owning SessionCard pauses this timer instead of
+  // leaving it running invisibly underneath. Adjusts state during render
+  // (React's documented "adjusting state when a prop changes" pattern -
+  // see react.dev/reference/react/useState#storing-information-from-previous-renders)
+  // rather than in an effect, so this doesn't cost an extra render pass or
+  // call setState from inside a passive effect.
+  const [prevActive, setPrevActive] = useState(active);
+  if (prevActive !== active) {
+    setPrevActive(active);
+    if (!active) {
+      setRunning(false);
+      setShowCountdown(false);
+    }
+  }
+
+  // Release the active-timer registry slot on the same transition. Plain
+  // external side effect (no React state involved), so a normal effect is
+  // fine here.
+  useEffect(() => {
+    if (!active) releaseActiveTimer(timerTokenRef.current);
+  }, [active]);
+
+  // Re-acquire wake lock when the page becomes visible again. BUG-16's fix
+  // (requestWakeLock wiring a 'release' listener that nulls wakeLockRef.current
+  // when the lock is silently revoked) applies here too.
+  useEffect(() => {
+    if (!running || !timerSettings.wakeLock) return;
+    const handler = async () => {
+      if (document.visibilityState === "visible" && !wakeLockRef.current) {
+        wakeLockRef.current = await requestWakeLock(() => {
+          wakeLockRef.current = null;
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, [running, timerSettings.wakeLock]);
 
   // Kick off the first exercise. restOnly exercises start in rest phase so
   // between-block rests render with the right label from the first second.
@@ -185,6 +252,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
         if (nextRound > rounds) {
           setPhase("done");
           setRunning(false);
+          releaseActiveTimer(timerTokenRef.current);
           beepDone();
           return;
         }
@@ -284,18 +352,38 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, phase, currentEx, currentRound, innerRound]);
 
-  const togglePause = () => {
+  // BUG-07: force-stop this instance without losing circuit progress - used
+  // when another timer claims the active-timer slot out from under us.
+  const forceStop = useCallback(() => {
+    setRunning(false);
+    setShowCountdown(false);
+  }, []);
+
+  const togglePause = async () => {
     // Always unlock audio on gesture. iOS backgrounding can resuspend the
     // ctx mid-workout; without this re-unlock, pause→resume kills the beeps.
     unlockAudio();
     if (phase === "idle" || phase === "done") {
+      if (timerSettings.wakeLock && !wakeLockRef.current) {
+        wakeLockRef.current = await requestWakeLock(() => {
+          wakeLockRef.current = null;
+        });
+      }
+      // Claim the app-wide active-timer slot the moment the user presses
+      // play, not only once running becomes true - this also stops another
+      // timer that's still mid-countdown.
+      claimActiveTimer(timerTokenRef.current, forceStop);
       setShowCountdown(true);
+    } else if (running) {
+      setRunning(false);
+      releaseActiveTimer(timerTokenRef.current);
     } else {
-      setRunning(!running);
+      claimActiveTimer(timerTokenRef.current, forceStop);
+      setRunning(true);
     }
   };
 
-  const reset = () => {
+  const reset = async () => {
     setRunning(false);
     setShowCountdown(false);
     setPhase("idle");
@@ -303,6 +391,9 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
     setCurrentRound(1);
     setInnerRound(1);
     setTimeLeft(0);
+    releaseActiveTimer(timerTokenRef.current);
+    await releaseWakeLock(wakeLockRef.current);
+    wakeLockRef.current = null;
   };
 
   const handleCountdownComplete = useCallback(() => {
@@ -319,6 +410,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
       if (nextRound > rounds) {
         setPhase("done");
         setRunning(false);
+        releaseActiveTimer(timerTokenRef.current);
         return;
       }
       setCurrentRound(nextRound);
@@ -408,7 +500,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
       : null;
 
   return (
-    <div className="rounded-card overflow-hidden relative" style={{ background: "var(--timer-bg, #1a1a2e)" }}>
+    <div className="rounded-card overflow-hidden relative" style={{ background: "var(--timer-bg)" }}>
       {showCountdown && <CountdownIntro onComplete={handleCountdownComplete} />}
 
       {/* Phase-tinted ambient glow */}
@@ -479,7 +571,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.4)" }}>
                   {circuitSummary(exercises)}
                 </p>
-                <p className="text-5xl font-display font-bold tabular-nums tracking-tight text-white mt-2">
+                <p className="text-5xl font-bold tabular-nums tracking-tight text-white mt-2">
                   {formatTime(totalSeconds)}
                 </p>
                 <p className="text-[11px] mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -513,7 +605,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
                   )
                 )}
                 <p
-                  className="font-display font-bold tabular-nums text-white"
+                  className="font-bold tabular-nums text-white"
                   style={{ fontSize: "4.5rem", lineHeight: 1.05, letterSpacing: "-0.03em" }}
                 >
                   {formatTime(timeLeft)}

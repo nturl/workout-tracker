@@ -256,18 +256,29 @@ export function vibrateSetComplete(): void {
 
 interface WakeLockSentinelLike {
   release: () => Promise<void>;
+  // Real Screen Wake Lock sentinels are EventTargets that fire their own
+  // 'release' event when the OS/browser silently revokes the lock (e.g. on
+  // backgrounding). Optional here since a caller-supplied mock may not
+  // implement it.
+  addEventListener?: (type: "release", listener: () => void) => void;
 }
 
 interface WakeLockNavigator {
   wakeLock?: { request: (type: "screen") => Promise<WakeLockSentinelLike> };
 }
 
-export async function requestWakeLock(): Promise<WakeLockSentinelLike | null> {
+// onRelease, if given, is wired to the sentinel's own 'release' event so a
+// caller holding a ref to the sentinel can null it out when the lock is
+// revoked out from under it - without this, a caller's "re-acquire if I
+// don't already have one" guard can never fire again after the first grant.
+export async function requestWakeLock(onRelease?: () => void): Promise<WakeLockSentinelLike | null> {
   if (typeof navigator === "undefined") return null;
   const nav = navigator as unknown as WakeLockNavigator;
   if (!nav.wakeLock) return null;
   try {
-    return await nav.wakeLock.request("screen");
+    const sentinel = await nav.wakeLock.request("screen");
+    if (onRelease) sentinel.addEventListener?.("release", onRelease);
+    return sentinel;
   } catch {
     return null;
   }
@@ -279,5 +290,31 @@ export async function releaseWakeLock(sentinel: WakeLockSentinelLike | null): Pr
     await sentinel.release();
   } catch {
     // ignore
+  }
+}
+
+// ── Active-timer mutual exclusion ──────────────────────────────
+// Only one RepTimer/CircuitTimer instance should be "armed" (counting down
+// or running) at a time across the whole app - SessionCard renders its timer
+// subtree even while collapsed (display-only `hidden`), so without this a
+// user can start a second card's timer while a first one is still ticking
+// underneath. A tiny module-level registry: whoever claims last force-stops
+// whoever held it before.
+type ActiveTimerStopFn = () => void;
+let activeTimerToken: object | null = null;
+let activeTimerStop: ActiveTimerStopFn | null = null;
+
+export function claimActiveTimer(token: object, stopFn: ActiveTimerStopFn): void {
+  if (activeTimerToken && activeTimerToken !== token) {
+    activeTimerStop?.();
+  }
+  activeTimerToken = token;
+  activeTimerStop = stopFn;
+}
+
+export function releaseActiveTimer(token: object): void {
+  if (activeTimerToken === token) {
+    activeTimerToken = null;
+    activeTimerStop = null;
   }
 }

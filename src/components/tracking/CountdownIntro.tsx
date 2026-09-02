@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   playCountdownIntro,
   vibrateRep,
@@ -27,6 +28,17 @@ export function CountdownIntro({ seconds = 6, onComplete, onSkip }: CountdownInt
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
+  // BUG-17 fix: read the latest settings via a ref inside the clock effect
+  // instead of depending on the timerSettings object directly. setTimerSettings
+  // always installs a brand-new object (useWorkoutStore.ts), so any unrelated
+  // settings write anywhere in the (deliberately kept-mounted) app would
+  // otherwise tear down and recreate this clock mid-count, restarting the
+  // countdown from `seconds` instead of continuing from where it was.
+  const timerSettingsRef = useRef(timerSettings);
+  useEffect(() => {
+    timerSettingsRef.current = timerSettings;
+  }, [timerSettings]);
+
   useEffect(() => {
     const clockRef: { current: ClockController | null } = { current: null };
     let goTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -37,16 +49,16 @@ export function CountdownIntro({ seconds = 6, onComplete, onSkip }: CountdownInt
         if (completedRef.current) return;
         setCount(secondsLeft);
         if (secondsLeft > 0) {
-          if (timerSettings.audio) playCountdownIntro(false);
-          if (timerSettings.haptics) vibrateRep();
+          if (timerSettingsRef.current.audio) playCountdownIntro(false);
+          if (timerSettingsRef.current.haptics) vibrateRep();
         }
       },
       onComplete: () => {
         if (completedRef.current) return;
         completedRef.current = true;
         setCount(0);
-        if (timerSettings.audio) playCountdownIntro(true);
-        if (timerSettings.haptics) vibrateSetComplete();
+        if (timerSettingsRef.current.audio) playCountdownIntro(true);
+        if (timerSettingsRef.current.haptics) vibrateSetComplete();
         // Small delay so the "GO" flashes before the timer screen takes over.
         goTimeout = setTimeout(() => onCompleteRef.current(), 350);
       },
@@ -56,7 +68,7 @@ export function CountdownIntro({ seconds = 6, onComplete, onSkip }: CountdownInt
       clockRef.current?.stop();
       if (goTimeout) clearTimeout(goTimeout);
     };
-  }, [seconds, timerSettings.audio, timerSettings.haptics]);
+  }, [seconds]);
 
   const handleSkip = () => {
     if (completedRef.current) return;
@@ -65,11 +77,22 @@ export function CountdownIntro({ seconds = 6, onComplete, onSkip }: CountdownInt
     onCompleteRef.current();
   };
 
+  // BUG-29 fix: portal to document.body so this overlay's `fixed inset-0`
+  // is never nested under an ancestor whose entrance animation holds a
+  // non-`none` transform (which would make that ancestor a containing block
+  // for `position: fixed` and trap this overlay inside e.g. a SessionCard's
+  // expanded accordion). Lazy initializer (not an effect) so SSR never
+  // touches `document` but the portal target is available from this
+  // component's very first client render - no extra render pass needed.
+  const [portalTarget] = useState<HTMLElement | null>(() =>
+    typeof document !== "undefined" ? document.body : null
+  );
+
   const showGo = count <= 0;
   const displayValue = showGo ? "GO" : String(count);
   const color = showGo ? "var(--accent)" : count === 1 ? "var(--warning)" : "var(--accent-light)";
 
-  return (
+  const content = (
     <button
       type="button"
       onClick={handleSkip}
@@ -88,8 +111,10 @@ export function CountdownIntro({ seconds = 6, onComplete, onSkip }: CountdownInt
             filter: "blur(1px)",
           }}
         />
+        {/* BUG-18 fix: numerals stay Inter (drop font-display) so tabular-nums
+            actually holds each digit's advance width - see layout.tsx:9-11. */}
         <span
-          className="font-display font-bold tabular-nums leading-none"
+          className="font-bold tabular-nums leading-none"
           style={{
             fontSize: showGo ? "10rem" : "14rem",
             color,
@@ -105,4 +130,7 @@ export function CountdownIntro({ seconds = 6, onComplete, onSkip }: CountdownInt
       </span>
     </button>
   );
+
+  if (!portalTarget) return null;
+  return createPortal(content, portalTarget);
 }

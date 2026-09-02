@@ -331,6 +331,7 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
               onComplete={checklistMode
                 ? (result) => { if (activeSlug) handleExerciseComplete(activeSlug, result); }
                 : undefined}
+              active={expanded}
             />
           )}
           {showTimer && parsedTimed.length > 0 && (
@@ -340,6 +341,7 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
                 const slug = exerciseSlugs[parsedTimed[i].originalIndex];
                 if (slug) handleTimerExerciseComplete(slug);
               } : undefined}
+              active={expanded}
             />
           )}
           {detail.warmup && (

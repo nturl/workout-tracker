@@ -1,8 +1,19 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { DOT_COLORS } from "@/lib/colors";
 
-const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
+// BUG-23: was a standalone hardcoded hex palette. Now rides design tokens
+// (var(--accent)/var(--warning)/var(--danger)) plus existing DOT_COLORS
+// entries instead of introducing new off-token literals.
+const COLORS = [
+  "var(--accent)",
+  DOT_COLORS.strength,
+  "var(--warning)",
+  "var(--danger)",
+  DOT_COLORS.meditation,
+  DOT_COLORS.posture,
+];
 
 // Particle geometry is rolled once at module load, not during render - render
 // must stay pure (react-compiler). Bursts reuse the same scatter, which reads
