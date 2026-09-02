@@ -52,8 +52,10 @@ export function SunBanner() {
             className="h-full rounded-full transition-all duration-1000"
             style={{
               width: `${pct}%`,
+              // #fbbf24 (yellow)/#60a5fa (blue) have no equivalent in the design token
+              // system (accent/warning/danger only) — left as-is, see fix report.
               background: pct > 80
-                ? "linear-gradient(90deg, #fbbf24, #f97316)"
+                ? "linear-gradient(90deg, #fbbf24, var(--warning))"
                 : "linear-gradient(90deg, #fbbf24, #60a5fa)",
             }}
           />

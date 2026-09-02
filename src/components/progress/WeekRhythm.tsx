@@ -46,7 +46,7 @@ export const WeekRhythm = memo(function WeekRhythm({ selectedDay, onSelectDay, w
           const plan = weeklyPlan.find((d) => d.day === day);
           const isToday = isCurrentWeek && day === todayName;
           const isSelected = day === selectedDay;
-          const dotColor = DOT_COLORS[plan?.sessions[plan.sessions.length - 1]?.category || "recovery"] || "#6b7280";
+          const dotColor = DOT_COLORS[plan?.sessions[plan.sessions.length - 1]?.category || "recovery"] || "var(--text-muted)";
 
           return (
             <button key={day} onClick={() => onSelectDay(day)}

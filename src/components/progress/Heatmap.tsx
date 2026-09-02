@@ -117,7 +117,7 @@ export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions
         {/* Day rows: label + cells */}
         {Array.from({ length: 7 }).map((_, dayIdx) => {
           const category = dayCategories[dayIdx];
-          const dotColor = DOT_COLORS[category] || "#6b7280";
+          const dotColor = DOT_COLORS[category] || "var(--text-muted)";
 
           return [
             /* Row label with dot */

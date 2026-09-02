@@ -40,8 +40,9 @@ function Ring({ value, max, from, to, size = 56 }: { value: number; max: number;
 
 export function StreakCounter({ streak, weekDone, weekTotal, bestStreak }: StreakCounterProps) {
   const stats = [
-    { value: streak, max: 7, label: "Streak", from: "#f97316", to: "#fb923c" },
+    { value: streak, max: 7, label: "Streak", from: "var(--warning)", to: "color-mix(in srgb, var(--warning) 100%, white 25%)" },
     { value: weekDone, max: weekTotal, label: "This Week", from: "var(--accent)", to: "var(--accent-light)", sub: `/${weekTotal}` },
+    // No purple token exists in the design spec's palette (accent/warning/danger only) — left as-is, see fix report.
     { value: bestStreak, max: Math.max(bestStreak, 7), label: "Best", from: "#a855f7", to: "#c084fc" },
   ];
 

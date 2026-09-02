@@ -18,13 +18,14 @@ import { RecoveryBanner } from "@/components/recovery/RecoveryBanner";
 import { SunBanner } from "@/components/dashboard/SunBanner";
 import { useOuraStatus } from "@/hooks/useConnectedAccounts";
 import { notifySessionComplete, notifyWeekComplete, maybeNotifyStreakMilestone } from "@/lib/pushNotify";
+import type { SyncStatus } from "@/hooks/useSync";
 
 // Same cap the Settings habit editor (HabitManager) enforces — the store
 // itself doesn't reject over-limit adds, so both UIs guard it client-side.
 const MAX_HABITS = 30;
 
 interface WorkoutsTabProps {
-  syncStatus: "idle" | "syncing" | "error";
+  syncStatus: SyncStatus;
   syncNow: () => void;
   onOpenRecovery: () => void;
 }
@@ -42,8 +43,8 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
   const setSelectedDay = useWorkoutStore((s) => s.setSelectedDay);
   const habitData = useWorkoutStore((s) => s.habits);
   const habitDefs = useWorkoutStore((s) => s.habitDefs);
-  const toggleHabit = useWorkoutStore((s) => s.toggleHabit);
   const setHabit = useWorkoutStore((s) => s.setHabit);
+  const clearHabit = useWorkoutStore((s) => s.clearHabit);
   const addHabit = useWorkoutStore((s) => s.addHabit);
   const renameHabit = useWorkoutStore((s) => s.renameHabit);
   const removeHabit = useWorkoutStore((s) => s.removeHabit);
@@ -80,6 +81,15 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
   };
 
   const startRenameHabit = (id: string, label: string) => {
+    // BUG-15: commit any in-progress, uncommitted rename before switching
+    // the edit target — otherwise the typed draft is silently discarded.
+    if (editingHabitId && editingHabitId !== id) {
+      const trimmed = draftHabitLabel.trim();
+      if (trimmed) {
+        renameHabit(editingHabitId, trimmed);
+        syncNow();
+      }
+    }
     setConfirmDeleteHabitId(null);
     setEditingHabitId(id);
     setDraftHabitLabel(label);
@@ -130,11 +140,21 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
         streak: calculateDailyHabitStreak(map),
         bestStreak: getBestDailyHabitStreak(map),
         recentDays: last7.map((d) => ({ ...d, logged: map[d.key] })),
-        toggle: (date: string) => toggleHabit(id, date),
+        // BUG-14: history cells cycle unrecorded -> done -> missed ->
+        // unrecorded, instead of a plain boolean toggle that can never
+        // return to unrecorded.
+        cycleDate: (date: string) => {
+          const current = map[date];
+          if (current === undefined) setHabit(id, date, true);
+          else if (current === true) setHabit(id, date, false);
+          else clearHabit(id, date);
+        },
         setToday: (done: boolean) => setHabit(id, today, done),
+        // BUG-14: a mistaken tap on today's active check/X is reversible.
+        clearToday: () => clearHabit(id, today),
       };
     });
-  }, [mounted, today, habitData, toggleHabit, setHabit, habitDefs]);
+  }, [mounted, today, habitData, setHabit, clearHabit, habitDefs]);
   const { total: weekTotal, done: weekDone } = useMemo(() => getWeekProgress(completions, wk), [completions, wk]);
   const ouraStatus = useOuraStatus();
 
@@ -236,7 +256,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
               {activePlan.sessions.filter((s) => isSessionScheduled(s, wk)).map((session, si) => {
                 const key = sessionKey(wk, activePlan.day, session);
                 return (
-                  <div key={si} className="anim-fade-up" style={{ "--stagger-i": si } as React.CSSProperties}>
+                  <div key={key} className="anim-fade-up" style={{ "--stagger-i": si } as React.CSSProperties}>
                     <SessionCard session={session} level={level} completed={!!completions[key]}
                       onToggle={() => handleToggle(activePlan.day, session)} logKey={key} logs={logs}
                       onOpenLog={() => setLogModal({ session, key })} onSaveLog={handleSaveLog} showTimer={true} />
@@ -253,9 +273,20 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
             <button
               type="button"
               onClick={() => {
+                // BUG-15: commit any in-progress, uncommitted rename before
+                // leaving edit mode — otherwise the typed draft is silently
+                // discarded.
+                if (habitsEditMode && editingHabitId) {
+                  const trimmed = draftHabitLabel.trim();
+                  if (trimmed) {
+                    renameHabit(editingHabitId, trimmed);
+                    syncNow();
+                  }
+                }
                 setHabitsEditMode((v) => !v);
                 setConfirmDeleteHabitId(null);
                 setEditingHabitId(null);
+                setDraftHabitLabel("");
               }}
               className="pressable ml-auto text-[13px] font-semibold"
               style={{ color: "var(--accent)" }}
@@ -303,6 +334,18 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
                         if (e.key === "Enter") commitRenameHabit();
                         if (e.key === "Escape") cancelRenameHabit();
                       }}
+                      onBlur={() => {
+                        // BUG-15: commit a non-empty draft on blur instead of
+                        // silently discarding it (Escape still cancels).
+                        if (!editingHabitId) return;
+                        const trimmed = draftHabitLabel.trim();
+                        if (trimmed) {
+                          renameHabit(editingHabitId, trimmed);
+                          syncNow();
+                        }
+                        setEditingHabitId(null);
+                        setDraftHabitLabel("");
+                      }}
                       maxLength={100}
                       aria-label="Habit name"
                       className="input-field flex-1 min-w-0 bg-transparent text-[15px] font-medium outline-none border-b"
@@ -322,12 +365,21 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
 
                   {editingHabitId === h.key ? (
                     <>
-                      <button type="button" onClick={commitRenameHabit} aria-label="Save name"
+                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={commitRenameHabit} aria-label="Save name"
                         className="pressable shrink-0 w-8 h-8 rounded-button flex items-center justify-center"
                         style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}>
                         <Icon name="check" size={15} strokeWidth={2.6} />
                       </button>
-                      <button type="button" onClick={cancelRenameHabit} aria-label="Cancel"
+                      {/* B3: a plain mousedown blurs the input BEFORE this
+                          button's click lands; the onBlur handler above
+                          commits any non-empty draft, the row re-renders
+                          without editingHabitId === h.key, and this whole
+                          branch unmounts before the click can ever fire
+                          cancelRenameHabit — so "Cancel" silently saved
+                          instead. preventDefault on mousedown keeps focus on
+                          the input (no blur), so the click reaches this
+                          button and actually cancels. */}
+                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={cancelRenameHabit} aria-label="Cancel"
                         className="pressable shrink-0 w-8 h-8 rounded-button flex items-center justify-center"
                         style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
                         <Icon name="close" size={14} strokeWidth={2.4} />
@@ -374,8 +426,12 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
                       h.setToday(done);
                       syncNow();
                     }}
-                    onToggleDate={(date) => {
-                      h.toggle(date);
+                    onClearToday={() => {
+                      h.clearToday();
+                      syncNow();
+                    }}
+                    onCycleDate={(date) => {
+                      h.cycleDate(date);
                       syncNow();
                     }}
                     onExpandToggle={() => setExpandedHabit(expandedHabit === h.key ? null : h.key)}

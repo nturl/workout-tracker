@@ -11,7 +11,19 @@ interface HabitCardProps {
   expanded: boolean;
   recentDays: (RecentDay & { logged: boolean | undefined })[];
   onSetToday: (done: boolean) => void;
-  onToggleDate: (dateKey: string) => void;
+  /**
+   * BUG-14: tapping the button that's already ACTIVE clears today back to
+   * unrecorded, instead of re-firing onSetToday with the same value — a
+   * mistaken tap on today's cell is reversible instead of silently zeroing
+   * the streak with no way back.
+   */
+  onClearToday: () => void;
+  /**
+   * BUG-14: history cells cycle three states — unrecorded -> done -> missed
+   * -> unrecorded — instead of a plain boolean toggle that can never return
+   * to unrecorded once tapped.
+   */
+  onCycleDate: (dateKey: string) => void;
   onExpandToggle: () => void;
 }
 
@@ -23,7 +35,8 @@ export function HabitCard({
   expanded,
   recentDays,
   onSetToday,
-  onToggleDate,
+  onClearToday,
+  onCycleDate,
   onExpandToggle,
 }: HabitCardProps) {
   return (
@@ -36,7 +49,7 @@ export function HabitCard({
         <div className="flex shrink-0 items-center gap-1.5">
           <button
             type="button"
-            onClick={() => onSetToday(true)}
+            onClick={() => (statusToday === true ? onClearToday() : onSetToday(true))}
             aria-pressed={statusToday === true}
             aria-label={`Mark ${label} today as done`}
             className="pressable w-8 h-8 rounded-full flex items-center justify-center transition-colors"
@@ -50,7 +63,7 @@ export function HabitCard({
           </button>
           <button
             type="button"
-            onClick={() => onSetToday(false)}
+            onClick={() => (statusToday === false ? onClearToday() : onSetToday(false))}
             aria-pressed={statusToday === false}
             aria-label={`Mark ${label} today as missed`}
             className="pressable w-8 h-8 rounded-full flex items-center justify-center transition-colors"
@@ -74,10 +87,10 @@ export function HabitCard({
             {label}
           </span>
           <span className="flex items-center gap-1 shrink-0 tabular-nums">
-            <span className="inline-flex" style={{ color: streak > 0 ? "#f97316" : "var(--text-muted)" }}>
+            <span className="inline-flex" style={{ color: streak > 0 ? "var(--warning)" : "var(--text-muted)" }}>
               <Icon name="flame" size={13} strokeWidth={2.2} />
             </span>
-            <span className="font-display text-base font-bold" style={{ color: streak > 0 ? "#f97316" : "var(--text-muted)" }}>{streak}</span>
+            <span className="font-display text-base font-bold" style={{ color: streak > 0 ? "var(--warning)" : "var(--text-muted)" }}>{streak}</span>
             <span className="text-[10px] font-medium ml-0.5" style={{ color: "var(--text-muted)" }}>best {bestStreak}</span>
           </span>
           <span
@@ -98,9 +111,11 @@ export function HabitCard({
             <button
               key={d.key}
               type="button"
-              onClick={() => onToggleDate(d.key)}
+              onClick={() => onCycleDate(d.key)}
               aria-pressed={d.logged === true}
-              aria-label={`Mark ${label} as ${d.logged === true ? "missed" : "done"} for ${d.key}${d.isToday ? " (today)" : ""}`}
+              aria-label={`Mark ${label} as ${
+                d.logged === undefined ? "done" : d.logged === true ? "missed" : "unrecorded"
+              } for ${d.key}${d.isToday ? " (today)" : ""}`}
               className="pressable flex-1 flex flex-col items-center gap-1 py-1 rounded-lg"
             >
               <span
