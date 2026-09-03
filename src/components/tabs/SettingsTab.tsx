@@ -1,12 +1,14 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { type Level } from "@/lib/workoutData";
 import { PushSetup } from "@/components/settings/PushSetup";
 import { ConnectedAccounts } from "@/components/settings/ConnectedAccounts";
 import { HabitManager } from "@/components/settings/HabitManager";
+import { InstallSheet } from "@/components/InstallSheet";
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
 import { useTheme } from "@/hooks/useTheme";
+import { isStandalonePWA } from "@/lib/pushClient";
 import { UserButton } from "@clerk/nextjs";
 import type { Theme } from "@/types/workout";
 
@@ -27,6 +29,12 @@ export function SettingsTab({ syncNow }: SettingsTabProps) {
   const timerSettings = useWorkoutStore((s) => s.timerSettings);
   const setTimerSettings = useWorkoutStore((s) => s.setTimerSettings);
   const { theme, setTheme } = useTheme();
+  const [standalone, setStandalone] = useState(true);
+  const [installOpen, setInstallOpen] = useState(false);
+
+  useEffect(() => {
+    setStandalone(isStandalonePWA());
+  }, []);
 
   const handleSetLevel = (l: Level) => {
     setLevel(l);
@@ -92,18 +100,34 @@ export function SettingsTab({ syncNow }: SettingsTabProps) {
           </div>
         </div>
 
+        {/* Get the app */}
+        {!standalone && (
+          <div className="glass-card rounded-card p-4 anim-fade-up flex items-center gap-3" style={{ "--stagger-i": 2 } as CSSProperties}>
+            <span className="text-2xl">📲</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-content-primary">Get the app</p>
+              <p className="text-xs text-content-muted">Add to your home screen for the full experience</p>
+            </div>
+            <button onClick={() => setInstallOpen(true)}
+              className="shrink-0 px-3 py-1.5 rounded-button text-xs font-semibold pressable bg-accent text-accent-contrast">
+              Install
+            </button>
+          </div>
+        )}
+        <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
+
         {/* Notifications */}
-        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 2 } as CSSProperties}>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 3 } as CSSProperties}>
           <PushSetup />
         </div>
 
         {/* Daily Habits */}
-        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 3 } as CSSProperties}>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 4 } as CSSProperties}>
           <HabitManager syncNow={syncNow} />
         </div>
 
         {/* Timer */}
-        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 4 } as CSSProperties}>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 5 } as CSSProperties}>
           <p className={sectionLabel}>Timer</p>
           <div className="space-y-3">
             {([
@@ -142,7 +166,7 @@ export function SettingsTab({ syncNow }: SettingsTabProps) {
         </div>
 
         {/* Connected Accounts */}
-        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 5 } as CSSProperties}>
+        <div className="glass-card rounded-card p-4 anim-fade-up" style={{ "--stagger-i": 6 } as CSSProperties}>
           <ConnectedAccounts />
         </div>
       </div>

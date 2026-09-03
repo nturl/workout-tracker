@@ -1,35 +1,43 @@
 "use client";
 
-import { useState } from "react";
-import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { useState, useEffect } from "react";
+import { InstallSheet } from "@/components/InstallSheet";
+import { isStandalonePWA } from "@/lib/pushClient";
 
 const DISMISSED_KEY = "install-banner-dismissed";
 
 export function InstallBanner() {
-  const { canInstall, promptInstall } = useInstallPrompt();
+  const [standalone, setStandalone] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === "undefined") return true;
     return localStorage.getItem(DISMISSED_KEY) === "true";
   });
 
-  if (!canInstall || dismissed) return null;
+  useEffect(() => {
+    setStandalone(isStandalonePWA());
+  }, []);
+
+  if (standalone || dismissed) return null;
 
   return (
-    <div className="mx-5 mt-4 glass-card rounded-card p-4 flex items-center gap-3">
-      <span className="text-2xl">📲</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Add to Home Screen</p>
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Get the full app experience</p>
+    <>
+      <div className="mx-5 mt-4 glass-card rounded-card p-4 flex items-center gap-3">
+        <span className="text-2xl">📲</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-content-primary">Add to Home Screen</p>
+          <p className="text-xs text-content-muted">Get the full app experience</p>
+        </div>
+        <button onClick={() => setSheetOpen(true)}
+          className="px-3 py-1.5 rounded-button text-xs font-semibold pressable bg-accent text-accent-contrast">
+          Get the app
+        </button>
+        <button onClick={() => { setDismissed(true); localStorage.setItem(DISMISSED_KEY, "true"); }}
+          className="text-sm text-content-muted" aria-label="Dismiss install banner">
+          ✕
+        </button>
       </div>
-      <button onClick={promptInstall}
-        className="px-3 py-1.5 rounded-button text-xs font-semibold pressable"
-        style={{ background: "var(--accent)", color: "var(--accent-contrast)" }}>
-        Install
-      </button>
-      <button onClick={() => { setDismissed(true); localStorage.setItem(DISMISSED_KEY, "true"); }}
-        className="text-sm" style={{ color: "var(--text-muted)" }} aria-label="Dismiss install banner">
-        ✕
-      </button>
-    </div>
+      <InstallSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+    </>
   );
 }
