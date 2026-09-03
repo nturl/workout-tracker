@@ -117,6 +117,9 @@ export default function Home() {
     <LiveRegionProvider>
       <main className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
         <OfflineBanner />
+        {/* Dismissible install nudge; sits above the tabs so the fixed
+            bottom nav never covers it. */}
+        <InstallBanner />
 
         {/* WorkoutsTab stays mounted across tab switches so a running
             CircuitTimer/RepTimer survives a peek at Recovery or Settings
@@ -149,8 +152,6 @@ export default function Home() {
             <SettingsTab syncNow={syncNow} />
           </Suspense>
         )}
-
-        <InstallBanner />
 
         {/* Floating chat button */}
         <button
