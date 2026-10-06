@@ -44,7 +44,7 @@ npm test        # vitest run
 | `PHONE_ENCRYPTION_KEY` | Key used to encrypt a stored contact field at rest. |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push key pair and contact subject. |
 | `ANTHROPIC_API_KEY` | Hosted AI model for image extraction and the in-app assistant. |
-| `GOOGLE_AI_API_KEY` | Second hosted AI model provider. <!-- CONFIRM: which features still call this key --> |
+| `GOOGLE_AI_API_KEY` | Optional. Only the health check route reads it, to report whether it is set; no feature in src calls a second AI provider. |
 | `NEXT_PUBLIC_APP_URL` | Public base URL of the app. |
 | `NODE_ENV` | Standard Node environment flag. |
 | (vendor vars) | Credentials for optional data-source integrations (see src/app/api). |
