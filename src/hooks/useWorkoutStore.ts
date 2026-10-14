@@ -63,28 +63,6 @@ const withKeys = (map: DirtyKeys | undefined, keys: string[]): DirtyKeys => {
   return next;
 };
 
-/**
- * Merge completion records with prefer-true semantics: a set is marked complete
- * if either side has it as complete. Prevents stale server state from erasing
- * a fresh local completion during the race between a gym tap and the debounced
- * push. To untoggle, the user flips locally, which writes false to both sides
- * on the next sync.
- *
- * Exported for direct unit coverage of the merge rule.
- */
-export function mergeCompletionsPreferTrue(
-  local: CompletionRecord,
-  incoming: CompletionRecord | undefined,
-): CompletionRecord {
-  const merged: CompletionRecord = { ...local };
-  if (incoming) {
-    for (const [key, value] of Object.entries(incoming)) {
-      merged[key] = Boolean(merged[key]) || Boolean(value);
-    }
-  }
-  return merged;
-}
-
 /** A fresh, independently-mutable copy of the default habit list. */
 export const seedDefaultHabits = (): HabitDef[] => DEFAULT_HABITS.map((h) => ({ id: h.id, label: h.label }));
 
@@ -595,11 +573,11 @@ export const useWorkoutStore = create<WorkoutState>()(
         set((state) => {
           // BUG-01/BUG-04 merge rule for hydrate: a key this device has changed
           // but not yet had acked (dirty) keeps its LOCAL value — including
-          // "locally deleted" — and everything else takes the server's value.
-          // Prefer-true stays underneath as the pre-dirty-tracking safety net
-          // for completions (where false only ever means "not yet"), but it is
-          // wrong for habits, which since the tri-state redesign use false to
-          // mean an explicit "missed" the user typed on purpose.
+          // "locally deleted" — and everything else takes the server's value,
+          // including a server-side false or deletion. (V19's prefer-true net
+          // guarded the tap-vs-push race before dirty tracking existed; dirty
+          // keys now cover that race, and prefer-true made a server un-toggle
+          // unreachable for a stale device.)
           const restoreLocal = <T,>(
             merged: Record<string, T>,
             local: Record<string, T>,
@@ -612,9 +590,8 @@ export const useWorkoutStore = create<WorkoutState>()(
             return merged;
           };
 
-          // V19: prefer-true merge for completions. See mergeCompletionsPreferTrue above.
           const mergedCompletions = restoreLocal(
-            mergeCompletionsPreferTrue(state.completions, data.completions),
+            { ...state.completions, ...(data.completions || {}) },
             state.completions,
             state.dirty.completions,
           );
@@ -623,7 +600,8 @@ export const useWorkoutStore = create<WorkoutState>()(
           const mergedRecovery = { ...state.recoveryData };
           if (data.recovery) {
             for (const [date, entry] of Object.entries(data.recovery)) {
-              if (entry) {
+              // A date this device changed but hasn't had acked keeps its local entry.
+              if (entry && !state.dirty.recovery[date]) {
                 const existing = mergedRecovery[date] || { date };
                 mergedRecovery[date] = {
                   ...existing,
@@ -646,6 +624,11 @@ export const useWorkoutStore = create<WorkoutState>()(
           ): DailyHabitRecord => {
             const merged: DailyHabitRecord = { ...local };
             if (incoming) {
+              // A date the server no longer has was deleted there; drop it
+              // unless a pending local edit owns it.
+              for (const date of Object.keys(merged)) {
+                if (!(date in incoming) && !dirtyDates[date]) delete merged[date];
+              }
               for (const [date, value] of Object.entries(incoming)) {
                 if (dirtyDates[date]) continue; // pending local edit wins
                 merged[date] = value;
