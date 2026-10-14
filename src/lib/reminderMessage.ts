@@ -6,7 +6,7 @@
 import { getRedis } from "./redis";
 import type { PushPayload } from "./webpush";
 import { weeklyPlan, type DayPlan, type WorkoutSession, type Level } from "./workoutData";
-import { isBiWeeklyOn, sessionKey } from "./helpers";
+import { isBiWeeklyOn, isSessionScheduled, sessionKey, getWeekProgress } from "./helpers";
 
 export const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 export type DayName = (typeof DAY_NAMES)[number];
@@ -74,42 +74,43 @@ async function getRecoveryInsight(userId: string, dateKey: string): Promise<Reco
   return null;
 }
 
-async function getStreak(userId: string): Promise<number> {
-  // Best-effort: use the user's sync blob which mirrors the local store.
-  const raw = await kvGet<{ completions?: Record<string, boolean> }>(`user:${userId}:state`);
-  const completions = raw?.completions || {};
-  if (Object.keys(completions).length === 0) return 0;
+interface SyncedData {
+  completions?: Record<string, boolean>;
+  level?: Level;
+}
 
+// The app's sync blob (written by /api/sync). Every helper below reads this.
+async function getSyncedData(userId: string): Promise<SyncedData> {
+  return (await kvGet<SyncedData>(`user:${userId}:data`)) || {};
+}
+
+/** dateKey (YYYY-MM-DD) shifted by `days`, computed in UTC so server tz never matters. */
+function shiftDateKey(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Same rule as calculateStreak in helpers.ts (a day counts when every scheduled
+ * session is done), but walking back from the user-local dateKey instead of the
+ * server clock.
+ */
+function getStreak(completions: Record<string, boolean>, dateKey: string): number {
+  if (Object.keys(completions).length === 0) return 0;
   let streak = 0;
-  const today = new Date();
   for (let i = 0; i < 365; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const dayName = DAY_NAMES[d.getDay()];
-    const weekStart = new Date(d);
-    weekStart.setDate(d.getDate() - d.getDay());
-    const wk = todayKeyUTC(weekStart);
-    // Match any key for that day — the user has per-session completion keys, we just need "something done".
-    const prefix = `${wk}:${dayName}:`;
-    const anyDone = Object.keys(completions).some((k) => k.startsWith(prefix) && completions[k]);
-    if (anyDone) streak++;
+    const key = shiftDateKey(dateKey, -i);
+    const [y, m, d] = key.split("-").map(Number);
+    const dayName = DAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+    const wk = weekStartKey(key);
+    const plan = weeklyPlan.find((p) => p.day === dayName);
+    if (!plan) continue;
+    const allDone = plan.sessions.every((s) => !isSessionScheduled(s, wk) || completions[sessionKey(wk, dayName, s)]);
+    if (allDone) streak++;
     else if (i > 0) break;
   }
   return streak;
-}
-
-async function getWeekProgress(userId: string): Promise<{ done: number; total: number }> {
-  const raw = await kvGet<{ completions?: Record<string, boolean> }>(`user:${userId}:state`);
-  const completions = raw?.completions || {};
-  const d = new Date();
-  d.setDate(d.getDate() - d.getDay());
-  const wk = todayKeyUTC(d);
-  let done = 0;
-  for (const [k, v] of Object.entries(completions)) {
-    if (v && k.startsWith(`${wk}:`)) done++;
-  }
-  // We don't know total without walking the plan on the server, so approximate: 7 default sessions/week.
-  return { done, total: 7 };
 }
 
 export interface ReminderContext {
@@ -185,21 +186,22 @@ function specificWorkoutLine(day: DayPlan, level: Level, wk: string): string {
   return sessions.map((s) => sessionDescriptor(s, level)).join(" • ");
 }
 
-async function getLevel(userId: string): Promise<Level> {
-  const raw = await kvGet<{ level?: Level }>(`user:${userId}:state`);
-  const level = raw?.level;
+function getLevel(data: SyncedData): Level {
+  const level = data.level;
   return level === "beginner" || level === "intermediate" || level === "advanced" ? level : "beginner";
 }
 
 export async function buildReminderPayload(ctx: ReminderContext): Promise<PushPayload> {
   const workout = DAILY_WORKOUTS[ctx.dayName];
   const wk = weekStartKey(ctx.dateKey);
-  const [level, recovery, streak, progress] = await Promise.all([
-    getLevel(ctx.userId),
+  const [data, recovery] = await Promise.all([
+    getSyncedData(ctx.userId),
     getRecoveryInsight(ctx.userId, ctx.dateKey),
-    getStreak(ctx.userId),
-    getWeekProgress(ctx.userId),
   ]);
+  const completions = data.completions || {};
+  const level = getLevel(data);
+  const streak = getStreak(completions, ctx.dateKey);
+  const progress = getWeekProgress(completions, wk);
 
   const day = weeklyPlan.find((d) => d.day === ctx.dayName);
   const specifics = day ? specificWorkoutLine(day, level, wk) : workout.tip;
@@ -227,11 +229,6 @@ export interface StatusContext extends ReminderContext {
   checkpoint: Checkpoint;
 }
 
-async function getCompletions(userId: string): Promise<Record<string, boolean>> {
-  const raw = await kvGet<{ completions?: Record<string, boolean> }>(`user:${userId}:state`);
-  return raw?.completions || {};
-}
-
 /**
  * A mid-day / evening accountability nudge: how today's headline sessions stand.
  * Uses the same sessions the morning reminder names, and the same completion
@@ -241,7 +238,7 @@ export async function buildStatusPayload(ctx: StatusContext): Promise<PushPayloa
   const wk = weekStartKey(ctx.dateKey);
   const day = weeklyPlan.find((d) => d.day === ctx.dayName);
   const sessions = day ? headlineSessions(day, wk) : [];
-  const completions = await getCompletions(ctx.userId);
+  const completions = (await getSyncedData(ctx.userId)).completions || {};
 
   const left = sessions
     .filter((s) => !completions[sessionKey(wk, ctx.dayName, s)])

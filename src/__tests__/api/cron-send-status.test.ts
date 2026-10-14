@@ -144,7 +144,7 @@ describe("/api/cron/send-status (web push)", () => {
     seedMockRedis({
       "user:u1:push-subs": JSON.stringify([sub("https://example.com/1")]),
       "user:u1:push-prefs": prefs(),
-      "user:u1:state": JSON.stringify({ completions: { [key]: true } }),
+      "user:u1:data": JSON.stringify({ completions: { [key]: true } }),
     });
     const res = await GET(makeGet({ test: "1", day: "Monday", checkpoint: "evening" }));
     const data = await res.json();

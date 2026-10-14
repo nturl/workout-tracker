@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import "../mocks/redis";
 import { clearMockRedis, seedMockRedis } from "../mocks/redis";
-import { buildReminderPayload, localTimeParts, dateKeyInTimezone, DAILY_WORKOUTS, minutesSinceReminder } from "@/lib/reminderMessage";
+import { weeklyPlan } from "@/lib/workoutData";
+import { sessionKey, isSessionScheduled, getWeekProgress } from "@/lib/helpers";
+import { buildReminderPayload, buildStatusPayload, localTimeParts, dateKeyInTimezone, DAILY_WORKOUTS, minutesSinceReminder } from "@/lib/reminderMessage";
 
 describe("reminderMessage", () => {
   beforeEach(() => {
@@ -25,7 +27,7 @@ describe("reminderMessage", () => {
     });
 
     it("respects the user's level when listing exercises", async () => {
-      seedMockRedis({ "user:u1:state": JSON.stringify({ level: "advanced" }) });
+      seedMockRedis({ "user:u1:data": JSON.stringify({ level: "advanced" }) });
       const payload = await buildReminderPayload({ userId: "u1", dayName: "Monday", dateKey: "2025-04-14" });
       // Advanced super-slow uses movement-category names, not machine names.
       expect(payload.body).toContain("Upper-Body Push");
@@ -51,32 +53,46 @@ describe("reminderMessage", () => {
       expect(payload.body).toContain("Well recovered");
     });
 
-    it("includes streak when >= 3", async () => {
-      const today = new Date();
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay());
-      const wk = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, "0")}-${String(weekStart.getDate()).padStart(2, "0")}`;
-      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-      const completions: Record<string, boolean> = {};
-      // Mark last 5 days done
-      for (let i = 0; i < 5; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        const ws = new Date(d); ws.setDate(d.getDate() - d.getDay());
-        const key = `${ws.getFullYear()}-${String(ws.getMonth() + 1).padStart(2, "0")}-${String(ws.getDate()).padStart(2, "0")}:${days[d.getDay()]}:some-session`;
-        completions[key] = true;
-      }
-      seedMockRedis({ "user:u1:state": JSON.stringify({ completions }) });
-      void wk;
-      const payload = await buildReminderPayload({ userId: "u1", dayName: "Monday", dateKey: "2025-04-14" });
-      // At least contain the streak emoji
-      expect(payload.body).toMatch(/streak|Well|Moderate|Low|reps|bursts|Time under|Round|Gentle|Sauna|outside|Play/);
-    });
-
     it("sets tag and URL", async () => {
       const payload = await buildReminderPayload({ userId: "u1", dayName: "Tuesday", dateKey: "2025-04-15" });
       expect(payload.tag).toBe("reminder-2025-04-15");
       expect(payload.url).toBe("https://app.test");
+    });
+  });
+
+  // The app syncs to user:{id}:data (src/app/api/sync/route.ts); nothing writes :state.
+  describe("reads the synced user:{id}:data blob", () => {
+    // Every scheduled session on dayName in week wk, marked done.
+    function dayDone(wk: string, dayName: string): Record<string, boolean> {
+      const out: Record<string, boolean> = {};
+      for (const s of weeklyPlan.find((d) => d.day === dayName)!.sessions) {
+        if (isSessionScheduled(s, wk)) out[sessionKey(wk, dayName, s)] = true;
+      }
+      return out;
+    }
+
+    it("status check-in counts sessions completed in the app", async () => {
+      seedMockRedis({ "user:u1:data": { completions: dayDone("2026-10-11", "Monday") } });
+      const p = await buildStatusPayload({ userId: "u1", dayName: "Monday", dateKey: "2026-10-12", checkpoint: "evening" });
+      expect(p.body).not.toContain("Nothing logged yet");
+      expect(p.data!.done).toBe(p.data!.total);
+    });
+
+    it("uses the synced level", async () => {
+      seedMockRedis({ "user:u1:data": { level: "advanced" } });
+      const p = await buildReminderPayload({ userId: "u1", dayName: "Monday", dateKey: "2025-04-14" });
+      expect(p.body).toContain("Upper-Body Push");
+    });
+
+    it("streak and week progress are anchored to the reminder's dateKey, not server time", async () => {
+      // Sat 4/12, Sun 4/13, Mon 4/14 2025 fully done: a 3-day streak ending on dateKey.
+      const completions = { ...dayDone("2025-04-06", "Saturday"), ...dayDone("2025-04-13", "Sunday"), ...dayDone("2025-04-13", "Monday") };
+      seedMockRedis({ "user:u1:data": { completions } });
+      const p = await buildReminderPayload({ userId: "u1", dayName: "Monday", dateKey: "2025-04-14" });
+      const week = getWeekProgress(completions, "2025-04-13");
+      expect(p.body).toContain("3-day streak");
+      expect(p.body).toContain(`${week.done}/${week.total} sessions this week.`);
+      expect(p.data).toMatchObject({ streak: 3, weekDone: week.done });
     });
   });
 
