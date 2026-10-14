@@ -499,6 +499,12 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
       ? (innerRound < exerciseRounds ? currentExercise?.name : nextLabel)
       : null;
 
+  // Form guide under the controls: the exercise on the clock, or during a
+  // transition rest the one coming up, so the demo and cues are there to set up.
+  const guideExercise = phase === "rest" && !isRecoverBlock && innerRound >= exerciseRounds
+    ? nextExercise
+    : phase === "work" || phase === "rest" ? currentExercise : null;
+
   return (
     <div className="rounded-card overflow-hidden relative" style={{ background: "var(--timer-bg)" }}>
       {showCountdown && <CountdownIntro onComplete={handleCountdownComplete} />}
@@ -683,6 +689,25 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
             <Icon name="skip" size={17} />
           </button>
         </div>
+
+        {guideExercise && (guideExercise.image || guideExercise.notes) && (
+          <div className="mt-4 rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+            {guideExercise.image && (
+              // eslint-disable-next-line @next/next/no-img-element -- auth-gated route, not a static asset
+              <img
+                key={guideExercise.image}
+                src={`/api/exercise-image/${guideExercise.image}`}
+                alt={`${guideExercise.name} demo`}
+                className="w-full aspect-[16/9] object-cover"
+              />
+            )}
+            {guideExercise.notes && (
+              <p className="text-[13px] leading-[19px] p-3" style={{ color: "rgba(255,255,255,0.72)" }}>
+                {guideExercise.notes}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

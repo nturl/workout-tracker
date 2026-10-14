@@ -427,7 +427,27 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-orange-500/15 text-orange-500 shrink-0">{duration}</span>
                         )}
                       </div>
+                      {ex.image && (
+                        // eslint-disable-next-line @next/next/no-img-element -- auth-gated route, not a static asset
+                        <img
+                          src={`/api/exercise-image/${ex.image}`}
+                          alt={`${cleanName} demo`}
+                          loading="lazy"
+                          className="w-full aspect-[16/9] object-cover rounded-lg mt-2 mb-1"
+                        />
+                      )}
                       {ex.notes && <p className="text-[15px] leading-[22px] mt-0.5 text-content-secondary">{ex.notes}</p>}
+                      {ex.videoUrl && (
+                        <a
+                          href={ex.videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[13px] font-semibold mt-1.5 py-1.5 text-accent-light"
+                        >
+                          ▶ Watch demo video
+                        </a>
+                      )}
                       {ex.alternatives && <p className="text-xs mt-0.5 text-content-muted">or {ex.alternatives.join(" · ")}</p>}
                       {(() => {
                         const equip = inferEquipment(ex);

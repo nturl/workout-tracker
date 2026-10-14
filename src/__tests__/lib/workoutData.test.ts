@@ -307,3 +307,17 @@ describe("workoutData - programming notes (P6)", () => {
     }
   });
 });
+
+describe("workoutData - exercise demo stills", () => {
+  it("every image an exercise names exists on disk and fits the route's name pattern", async () => {
+    const { existsSync } = await import("fs");
+    const path = await import("path");
+    const names = weeklyPlan.flatMap((d) => d.sessions.flatMap((s) =>
+      Object.values(s.levels).flatMap((l) => (l.exercises ?? []).map((e) => e.image).filter(Boolean))));
+    expect(names.length).toBeGreaterThan(0);
+    for (const n of names) {
+      expect(n).toMatch(/^[a-z0-9-]+\.jpg$/);
+      expect(existsSync(path.join(process.cwd(), "src/assets/exercises", n!)), n).toBe(true);
+    }
+  });
+});

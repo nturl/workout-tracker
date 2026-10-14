@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // PT exercise stills are read from disk by an auth-gated route, not served
+    // from public/; make sure Vercel bundles them with that function.
+    outputFileTracingIncludes: {
+      '/api/exercise-image/[name]': ['./src/assets/exercises/**'],
+    },
+  },
   async headers() {
     return [
       {

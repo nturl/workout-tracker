@@ -10,6 +10,11 @@ export interface Exercise {
   // 90-120s for slow-twitch-dominant (legs, back, posterior chain).
   // When set, the RepTimer derives targetReps = round(tutTargetSeconds / (up+down)).
   tutTargetSeconds?: number;
+  // Demo still in src/assets/exercises/, served signed-in only via
+  // /api/exercise-image/<image>.
+  image?: string;
+  // External demo video (e.g. a YouTube search for the movement).
+  videoUrl?: string;
 }
 
 export interface LevelDetail {
@@ -38,6 +43,8 @@ export interface CircuitExercise {
   bilateral?: boolean;
   rounds?: number;
   restOnly?: boolean;
+  image?: string;
+  notes?: string;
 }
 
 export interface ParsedTimedExercise {
@@ -94,6 +101,8 @@ export function parseTimedExercise(ex: Exercise, index: number): ParsedTimedExer
       rounds,
       bilateral,
       restOnly,
+      image: ex.image,
+      notes: ex.notes,
     },
   };
 }
@@ -294,61 +303,85 @@ const ptRehabDetail: LevelDetail = {
       name: "Seated Upper Trap Stretch, Left: 3 rounds × 30s/15s",
       notes: "Sit upright, grip the side of the chair with your left hand. Tilt your head toward the opposite shoulder until you feel a stretch in the left side of the neck. Hold the chair firmly so the shoulder does not shrug; gaze forward.",
       equipment: ["Chair"],
+      videoUrl: "https://www.youtube.com/results?search_query=seated+upper+trapezius+stretch+with+overpressure+physical+therapy",
+      image: "upper-trap-stretch-left.jpg",
     },
     {
       name: "Seated Upper Trap Stretch, Right: 3 rounds × 30s/15s",
       notes: "Sit upright, grip the side of the chair with your right hand. Tilt your head toward the opposite shoulder until you feel a stretch in the right side of the neck. Hold the chair firmly so the shoulder does not shrug; gaze forward.",
       equipment: ["Chair"],
+      videoUrl: "https://www.youtube.com/results?search_query=seated+upper+trapezius+stretch+with+overpressure+physical+therapy",
+      image: "upper-trap-stretch-right.jpg",
     },
     {
       name: "Foam Roller Pec Stretch: 3 rounds × 30s/15s",
       notes: "Lie lengthwise on the roller, arms out at shoulder height, elbows straight. Let the arms relax toward the floor until you feel a stretch in the chest and shoulders. Head and neck stay supported on the roller; core tight, no low-back arch.",
       equipment: ["Foam Roller"],
+      videoUrl: "https://www.youtube.com/results?search_query=foam+roller+pec+stretch+lying+lengthwise",
+      image: "foam-roller-pec-stretch.jpg",
     },
     {
       name: "90/90 ER Walk Out, Left: 2 rounds × 45s/15s",
       notes: "Band anchored in a doorframe, held in the left hand, facing the anchor, elbow bent at shoulder height. Keeping the elbow up and the hand rotated toward the ceiling, step back until the band is tense, pause, then return. 10 reps per set. Fight the band with the back of the shoulder.",
       equipment: ["Bands"],
+      videoUrl: "https://www.youtube.com/results?search_query=single+arm+90%2F90+external+rotation+band+walk+out",
+      image: "er-walk-out-left.jpg",
     },
     {
       name: "90/90 ER Walk Out, Right: 2 rounds × 45s/15s",
       notes: "Band anchored in a doorframe, held in the right hand, facing the anchor, elbow bent at shoulder height. Keeping the elbow up and the hand rotated toward the ceiling, step back until the band is tense, pause, then return. 10 reps per set. Fight the band with the back of the shoulder.",
       equipment: ["Bands"],
+      videoUrl: "https://www.youtube.com/results?search_query=single+arm+90%2F90+external+rotation+band+walk+out",
+      image: "er-walk-out-right.jpg",
     },
     {
       name: "90/90 IR Walk Out, Left: 2 rounds × 45s/15s",
       notes: "Band anchored in a doorframe, held in the left hand, facing away from the anchor, elbow bent at shoulder height. Keeping the elbow up and the hand rotated toward the ceiling, step forward until the band is tense, pause, then return. 10 reps per set. Fight the band with the front of the shoulder.",
       equipment: ["Bands"],
+      videoUrl: "https://www.youtube.com/results?search_query=single+arm+90%2F90+internal+rotation+band+walk+out",
+      image: "ir-walk-out-left.jpg",
     },
     {
       name: "90/90 IR Walk Out, Right: 2 rounds × 45s/15s",
       notes: "Band anchored in a doorframe, held in the right hand, facing away from the anchor, elbow bent at shoulder height. Keeping the elbow up and the hand rotated toward the ceiling, step forward until the band is tense, pause, then return. 10 reps per set. Fight the band with the front of the shoulder.",
       equipment: ["Bands"],
+      videoUrl: "https://www.youtube.com/results?search_query=single+arm+90%2F90+internal+rotation+band+walk+out",
+      image: "ir-walk-out-right.jpg",
     },
     {
       name: "Seated Alternating Uppercut: 3 rounds × 30s/15s",
       notes: "Sit upright, elbows bent at your sides, hands in fists. Keeping the elbow bent, punch one arm upward, return, then switch arms. 10 reps per set. Drive with the arms; the rest of the body stays still.",
       equipment: ["Chair"],
+      videoUrl: "https://www.youtube.com/results?search_query=seated+alternating+uppercut+shoulder+exercise",
+      image: "seated-alternating-uppercut.jpg",
     },
     {
       name: "Foam Roller Thoracic Extension: 3 rounds × 45s/15s",
       notes: "Sit with the roller across your mid back, hands behind your neck. Elbows tucked toward each other, lean back over the roller until you feel a stretch in the mid back, pause, return. 10 reps per set. Support the head; core tight, no low-back arch.",
       equipment: ["Foam Roller"],
+      videoUrl: "https://www.youtube.com/results?search_query=foam+roller+thoracic+extension+hands+behind+head",
+      image: "foam-roller-thoracic-extension.jpg",
     },
     {
       name: "Dowel Kneeling Thoracic Extension Stretch: 3 rounds × 30s/15s",
       notes: "Kneel holding a dowel, elbows bent and propped on a bench or chair in front of you. Sit the hips back toward the heels while reaching the chest toward the floor until you feel a stretch in the mid back. Rotate the forearms out, wrists wider than elbows; core tight.",
       equipment: ["Dowel", "Bench"],
+      videoUrl: "https://www.youtube.com/results?search_query=kneeling+thoracic+extension+stretch+dowel+bench",
+      image: "dowel-kneeling-thoracic-stretch.jpg",
     },
     {
       name: "Backward Scapular Circle: 2 rounds × 30s/15s",
       notes: "Sit upright. Circle the shoulder blades backward: shrug up, pull back, draw down. 10 reps per set. Move only the shoulder blades; the rest of the body stays still.",
       equipment: ["Chair"],
+      videoUrl: "https://www.youtube.com/results?search_query=seated+backward+scapular+circles",
+      image: "backward-scapular-circle.jpg",
     },
     {
       name: "Forward Scapular Circle: 2 rounds × 30s/15s",
       notes: "Sit upright. Circle the shoulder blades forward: shrug up, pull forward, draw down. 10 reps per set. Move only the shoulder blades; the rest of the body stays still.",
       equipment: ["Chair"],
+      videoUrl: "https://www.youtube.com/results?search_query=seated+forward+scapular+circles",
+      image: "forward-scapular-circle.jpg",
     },
   ],
 };
