@@ -5,9 +5,9 @@
 // static assets cached under it (which would otherwise reference chunk URLs
 // from a build that no longer exists on the server). There's no build step
 // wired up to bump this automatically; it has to be done by hand per deploy.
-const CACHE_NAME = "workout-tracker-v6";
-const STATIC_CACHE = "workout-static-v6";
-const API_CACHE = "workout-api-v6";
+const CACHE_NAME = "workout-tracker-v7";
+const STATIC_CACHE = "workout-static-v7";
+const API_CACHE = "workout-api-v7";
 
 // Deliberately NOT listing hashed Next.js chunk/CSS filenames here: they
 // change every build, so a hand-maintained list would go stale (missing new
@@ -29,60 +29,6 @@ const PRECACHE_URLS = [
   "/manifest.json",
 ];
 
-// Offline sync queue stored in IndexedDB
-const DB_NAME = "workout-sync";
-const STORE_NAME = "queue";
-
-function openSyncDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = (e) => {
-      e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function addToQueue(data) {
-  const db = await openSyncDB();
-  const tx = db.transaction(STORE_NAME, "readwrite");
-  tx.objectStore(STORE_NAME).add({ ...data, timestamp: Date.now() });
-  return new Promise((resolve) => { tx.oncomplete = resolve; });
-}
-
-async function drainQueue() {
-  const db = await openSyncDB();
-  const tx = db.transaction(STORE_NAME, "readonly");
-  const store = tx.objectStore(STORE_NAME);
-  const items = await new Promise((resolve) => {
-    const request = store.getAll();
-    request.onsuccess = () => resolve(request.result);
-  });
-
-  for (const item of items) {
-    try {
-      const response = await fetch(item.url, {
-        method: item.method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item.body),
-      });
-      // Delete on success OR client errors (4xx) — only retry on server errors (5xx)
-      if (response.ok || (response.status >= 400 && response.status < 500)) {
-        const delTx = db.transaction(STORE_NAME, "readwrite");
-        delTx.objectStore(STORE_NAME).delete(item.id);
-        await new Promise((resolve, reject) => {
-          delTx.oncomplete = resolve;
-          delTx.onerror = () => reject(delTx.error);
-        });
-      }
-    } catch {
-      // Network error — still offline, stop draining
-      break;
-    }
-  }
-}
-
 // Install: precache essential resources
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -93,7 +39,7 @@ self.addEventListener("install", (event) => {
 
 // Activate: clean old caches
 self.addEventListener("activate", (event) => {
-  const validCaches = [CACHE_NAME, STATIC_CACHE, API_CACHE];
+  const validCaches = [CACHE_NAME, STATIC_CACHE, API_CACHE, PUSH_CONFIG_CACHE];
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => !validCaches.includes(k)).map((k) => caches.delete(k)))
@@ -111,25 +57,14 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const clone = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
+          // Only a good response may replace the offline shell.
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
+          }
           return response;
         })
         .catch(() => caches.match("/"))
-    );
-    return;
-  }
-
-  // API sync requests: queue if offline
-  if (url.pathname === "/api/sync" && event.request.method === "POST") {
-    event.respondWith(
-      fetch(event.request.clone()).catch(async () => {
-        const body = await event.request.json();
-        await addToQueue({ url: url.pathname, method: "POST", body });
-        return new Response(JSON.stringify({ queued: true }), {
-          headers: { "Content-Type": "application/json" },
-        });
-      })
     );
     return;
   }
@@ -169,20 +104,6 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(event.request).catch(() => caches.match(event.request))
   );
-});
-
-// Background sync: drain queue when back online
-self.addEventListener("sync", (event) => {
-  if (event.tag === "workout-sync") {
-    event.waitUntil(drainQueue());
-  }
-});
-
-// Listen for online event to drain queue
-self.addEventListener("message", (event) => {
-  if (event.data === "drain-queue") {
-    drainQueue().catch((err) => console.error("Queue drain failed:", err));
-  }
 });
 
 // --- V16: Web Push ---
