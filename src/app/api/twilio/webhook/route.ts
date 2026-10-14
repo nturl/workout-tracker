@@ -23,10 +23,19 @@ function validateTwilioRequest(req: NextRequest, body: string): boolean {
   return twilio.validateRequest(authToken, signature, url, params);
 }
 
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 function twimlResponse(message: string): NextResponse {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Message>${message}</Message>
+  <Message>${escapeXml(message)}</Message>
 </Response>`;
   return new NextResponse(xml, { headers: { "Content-Type": "text/xml" } });
 }

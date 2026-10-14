@@ -65,7 +65,14 @@ describe("POST /api/twilio/webhook", () => {
   it("returns help message for unknown input", async () => {
     const res = await POST(makeTwilioRequest("random nonsense"));
     const text = await res.text();
-    expect(text).toContain("didn't understand");
+    expect(text).toContain("didn&apos;t understand");
+  });
+
+  it("XML-escapes user text echoed into the TwiML", async () => {
+    const res = await POST(makeTwilioRequest(`DONE - felt strong & fast <3 "yes" it's`));
+    const text = await res.text();
+    expect(text).toContain("Notes: felt strong &amp; fast &lt;3 &quot;yes&quot; it&apos;s");
+    expect(text).not.toContain("& fast <3");
   });
 
   it("returns XML content type", async () => {
