@@ -50,6 +50,10 @@ self.addEventListener("activate", (event) => {
 
 // Fetch: strategy-based caching
 self.addEventListener("fetch", (event) => {
+  // Writes (e.g. POST /api/sync) go straight to the network so a failure
+  // reaches the client's own retry instead of being swallowed here.
+  if (event.request.method !== "GET") return;
+
   const url = new URL(event.request.url);
 
   // Navigation: network first, fallback to cache
@@ -70,7 +74,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // API GET: network first, cache fallback (stale-while-revalidate)
-  if (url.pathname.startsWith("/api/") && event.request.method === "GET") {
+  if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
