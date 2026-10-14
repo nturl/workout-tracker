@@ -55,9 +55,14 @@ describe("/api/cron/send-reminder (web push)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("debug=1 returns status without auth", async () => {
+  it("debug=1 and test=1 require the cron secret", async () => {
+    expect((await GET(makeGet({ debug: "1" }))).status).toBe(401);
+    expect((await GET(makeGet({ test: "1" }))).status).toBe(401);
+  });
+
+  it("debug=1 returns status with auth", async () => {
     seedMockRedis({ "user:u1:push-subs": JSON.stringify([sub("https://example.com/1")]) });
-    const res = await GET(makeGet({ debug: "1" }));
+    const res = await GET(makeGet({ debug: "1" }, `Bearer ${CRON_SECRET}`));
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.status).toContain("web push");
@@ -77,7 +82,7 @@ describe("/api/cron/send-reminder (web push)", () => {
         timezone: "UTC",
       }),
     });
-    const res = await GET(makeGet({ test: "1", day: "Monday" }));
+    const res = await GET(makeGet({ test: "1", day: "Monday" }, `Bearer ${CRON_SECRET}`));
     expect(res.status).toBe(200);
     expect(mockSendNotification).not.toHaveBeenCalled();
   });

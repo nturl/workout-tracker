@@ -126,7 +126,11 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const url = new URL(req.url);
 
-  // ?debug=1 - config status, no auth
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // ?debug=1 - config status
   if (url.searchParams.get("debug") === "1") {
     const users = await listSubscribedUsers();
     const vapidConfig = getPushConfigStatus();
@@ -140,16 +144,12 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // ?test=1 - dry run (no auth, doesn't send). Optional ?checkpoint= and ?day= to force.
+  // ?test=1 - dry run (doesn't send). Optional ?checkpoint= and ?day= to force.
   if (url.searchParams.get("test") === "1") {
     const forceDay = url.searchParams.get("day") || undefined;
     const cp = url.searchParams.get("checkpoint");
     const forceCheckpoint = cp === "afternoon" || cp === "evening" ? cp : undefined;
     return sendStatusUpdates({ dryRun: true, forceCheckpoint, forceDay });
-  }
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Authenticated manual trigger: ?checkpoint=afternoon|evening forces an

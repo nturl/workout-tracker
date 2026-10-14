@@ -72,9 +72,14 @@ describe("/api/cron/send-status (web push)", () => {
     expect((await POST(makePost())).status).toBe(401);
   });
 
-  it("debug=1 returns status without auth", async () => {
+  it("debug=1 and test=1 require the cron secret", async () => {
+    expect((await GET(makeGet({ debug: "1" }))).status).toBe(401);
+    expect((await GET(makeGet({ test: "1" }))).status).toBe(401);
+  });
+
+  it("debug=1 returns status with auth", async () => {
     seedMockRedis({ "user:u1:push-subs": JSON.stringify([sub("https://example.com/1")]) });
-    const res = await GET(makeGet({ debug: "1" }));
+    const res = await GET(makeGet({ debug: "1" }, `Bearer ${CRON_SECRET}`));
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.status).toContain("Status check-in");
@@ -86,7 +91,7 @@ describe("/api/cron/send-status (web push)", () => {
       "user:u1:push-subs": JSON.stringify([sub("https://example.com/1")]),
       "user:u1:push-prefs": prefs(),
     });
-    const res = await GET(makeGet({ test: "1", day: "Monday", checkpoint: "afternoon" }));
+    const res = await GET(makeGet({ test: "1", day: "Monday", checkpoint: "afternoon" }, `Bearer ${CRON_SECRET}`));
     expect(res.status).toBe(200);
     expect(mockSendNotification).not.toHaveBeenCalled();
   });
@@ -132,7 +137,7 @@ describe("/api/cron/send-status (web push)", () => {
       "user:u1:push-subs": JSON.stringify([sub("https://example.com/1")]),
       "user:u1:push-prefs": prefs(),
     });
-    const res = await GET(makeGet({ test: "1", day: "Monday", checkpoint: "afternoon" }));
+    const res = await GET(makeGet({ test: "1", day: "Monday", checkpoint: "afternoon" }, `Bearer ${CRON_SECRET}`));
     const data = await res.json();
     const detail = data.details.find((d: { reason: string }) => d.reason.includes("would send"));
     expect(detail.reason).toContain("Super-Slow Strength");
@@ -146,7 +151,7 @@ describe("/api/cron/send-status (web push)", () => {
       "user:u1:push-prefs": prefs(),
       "user:u1:data": JSON.stringify({ completions: { [key]: true } }),
     });
-    const res = await GET(makeGet({ test: "1", day: "Monday", checkpoint: "evening" }));
+    const res = await GET(makeGet({ test: "1", day: "Monday", checkpoint: "evening" }, `Bearer ${CRON_SECRET}`));
     const data = await res.json();
     const detail = data.details.find((d: { reason: string }) => d.reason.includes("would send"));
     expect(detail.reason).toContain("All 1 done");
