@@ -3,10 +3,12 @@ import { readFileSync } from "fs";
 import path from "path";
 
 // Loads public/sw.js against a stubbed worker global and drives its handlers.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- handlers receive loosely-shaped fake events
+type SwEvent = any;
 const source = readFileSync(path.resolve(__dirname, "../../../public/sw.js"), "utf8");
 
 function loadSw(opts: { cacheKeys?: string[]; fetchImpl?: () => Promise<Response> } = {}) {
-  const handlers: Record<string, (e: any) => void> = {};
+  const handlers: Record<string, (e: SwEvent) => void> = {};
   const deleted: string[] = [];
   const puts: Array<{ cache: string; url: string }> = [];
   const caches = {
@@ -14,12 +16,12 @@ function loadSw(opts: { cacheKeys?: string[]; fetchImpl?: () => Promise<Response
     delete: async (k: string) => { deleted.push(k); return true; },
     open: async (name: string) => ({
       addAll: async () => {},
-      put: async (req: any) => { puts.push({ cache: name, url: typeof req === "string" ? req : req.url }); },
+      put: async (req: string | { url: string }) => { puts.push({ cache: name, url: typeof req === "string" ? req : req.url }); },
     }),
     match: async () => undefined,
   };
   const self = {
-    addEventListener: (type: string, fn: (e: any) => void) => { handlers[type] = fn; },
+    addEventListener: (type: string, fn: (e: SwEvent) => void) => { handlers[type] = fn; },
     skipWaiting: () => {},
     clients: { claim: () => {}, matchAll: async () => [] },
     location: { origin: "http://localhost" },
