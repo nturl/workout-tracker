@@ -92,6 +92,20 @@ describe("POST /api/recovery", () => {
     expect(json.phone).toBe("+15551234567");
   });
 
+  it("get-phone never returns the global sms:user-phone to a user without one", async () => {
+    seedMockRedis({ "sms:user-phone": "+15559990000" });
+    const res = await POST(makePostRequest({ action: "get-phone" }));
+    const json = await res.json();
+    expect(json.phone).toBeNull();
+  });
+
+  it("test-sms never texts the global sms:user-phone for a user without one", async () => {
+    seedMockRedis({ "sms:user-phone": "+15559990000" });
+    const res = await POST(makePostRequest({ action: "test-sms" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("No phone configured");
+  });
+
   it("returns empty completions (get-completions)", async () => {
     const res = await POST(makePostRequest({ action: "get-completions" }));
     const json = await res.json();

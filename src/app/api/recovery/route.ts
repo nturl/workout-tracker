@@ -129,7 +129,6 @@ export async function POST(req: NextRequest) {
         await redis.set(`phone-hash:${hashed}:userId`, userId);
         await redis.del(`phone:${phone}:userId`);
       }
-      if (!phone) phone = await redis.get("sms:user-phone");
       return NextResponse.json({ phone });
     }
 
@@ -144,7 +143,6 @@ export async function POST(req: NextRequest) {
       if (userPhone && isEncrypted(userPhone)) {
         userPhone = decryptPhone(userPhone);
       }
-      if (!userPhone) userPhone = await redis.get("sms:user-phone");
       if (!userPhone) {
         return NextResponse.json({ error: "No phone configured" }, { status: 400 });
       }
