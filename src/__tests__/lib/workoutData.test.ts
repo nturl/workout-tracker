@@ -196,7 +196,7 @@ describe("workoutData - parseTimedExercise (V23)", () => {
   });
 });
 
-describe("workoutData - PT shoulder rehab (V30, HEP2go 52JD3S2)", () => {
+describe("workoutData - PT shoulder rehab (PT Session 1, 2026-10-14)", () => {
   it("is scheduled every day of the week", () => {
     for (const day of weeklyPlan) {
       expect(
@@ -212,18 +212,23 @@ describe("workoutData - PT shoulder rehab (V30, HEP2go 52JD3S2)", () => {
     expect(pt.levels.advanced).toBe(pt.levels.beginner);
   });
 
-  it("parses into a 6-station timed circuit: bilateral thread-the-needle, 2-set ER 90/90", () => {
+  it("parses into a 12-station timed circuit where every station runs its prescribed sets", () => {
     const pt = weeklyPlan[0].sessions.find((s) => s.title === "PT Shoulder Rehab")!;
-    const parsed = parseTimedExercises(pt.levels.beginner.exercises!);
-    expect(parsed).toHaveLength(6);
-    // Every station is work, none parse as rest blocks.
+    const exercises = pt.levels.beginner.exercises!;
+    const parsed = parseTimedExercises(exercises);
+    // Every exercise is timed - nothing silently drops out of the timer.
+    expect(parsed).toHaveLength(exercises.length);
+    expect(parsed).toHaveLength(12);
     expect(parsed.every((p) => !p.circuit.restOnly)).toBe(true);
-    // Thread the Needle alternates sides - halfway switch cue.
-    expect(parsed[1].circuit.bilateral).toBe(true);
-    // ER 90/90 is prescribed as 2 sets of 10: a 2-round block with set rest.
+    // Left/right are separate stations, so no halfway switch cue.
+    expect(parsed.every((p) => !p.circuit.bilateral)).toBe(true);
+    // Upper trap stretch: 3 sets of 30s holds.
+    expect(parsed[0].circuit).toMatchObject({ rounds: 3, workSeconds: 30, restSeconds: 15 });
+    // 90/90 ER walk out: 2 sets of 10 reps.
     expect(parsed[3].circuit).toMatchObject({ rounds: 2, workSeconds: 45, restSeconds: 15 });
-    // Sub-60s stations keep the 10s transition for band/roller setup.
-    expect(parsed[0].circuit.restSeconds).toBe(10);
+    // Whole session lands near the stated ~25 minutes.
+    const total = parsed.reduce((t, p) => t + p.circuit.rounds! * (p.circuit.workSeconds + p.circuit.restSeconds), 0);
+    expect(total).toBe(1515);
   });
 });
 

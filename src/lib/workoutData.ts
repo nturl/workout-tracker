@@ -273,57 +273,89 @@ const egoscueSession: WorkoutSession = {
   },
 };
 
-// Daily shoulder + t-spine rehab, prescribed 2026-06-09 (HEP2go program
-// 52JD3S2, Ryan Guy). One prescription at every level - PT homework does not
-// scale with training tier. Each exercise name encodes a timed window sized
-// to its rep count so the CircuitTimer drives the whole session; the actual
-// reps live in the notes.
+// Daily shoulder, neck + t-spine rehab: Session 1 of Megan Gallagher's PT
+// program (Case #1, episode start 2026-10-07), copied from the PT app on
+// 2026-10-14. Replaces the 2026-06-09 HEP2go 52JD3S2 program. One prescription
+// at every level - PT homework does not scale with training tier. Each
+// exercise name encodes its sets as "N rounds × work/rest" so the CircuitTimer
+// paces every set; holds are the prescribed time, rep sets get a window sized
+// to 10 controlled reps. Left and right are separate stations, as in the app.
 const ptRehabDetail: LevelDetail = {
   instructions:
-    "Six daily rehab moves for shoulder and thoracic spine. Hit play and follow the reps inside each timed window - the clock paces the stations, the reps pace you. Quality over speed; stop shy of pain. Use a light band with controlled returns.",
-  duration: "~7 minutes",
+    "Twelve daily rehab moves for neck, shoulder and thoracic spine. Hit play: each station runs its prescribed sets, with a short rest between sets. Holds fill the window; rep sets are 10 controlled reps inside it. Quality over speed, stop shy of pain, and stay mindful of your posture throughout.",
+  duration: "~25 minutes",
   keyPoints: [
-    "10 reps inside each timed window - do not race the clock",
-    "Thoracic extension: easy over the lower ribs, no low-back arch",
-    "Band work: set the shoulder blade back and down before every rep",
+    "Stretches: 3 × 30s holds, ease into the stretch, no bouncing",
+    "Band walk outs: elbow stays at shoulder height, pause at tension before returning",
+    "Thoracic work: keep the core tight so the low back does not arch",
   ],
   exercises: [
     {
-      name: "Thoracic Extension (50s)",
-      notes: "Foam roller under the shoulder blades, arms behind head, hips down. 10 reps with a 3s hold, walking the roller along the blades.",
+      name: "Seated Upper Trap Stretch, Left: 3 rounds × 30s/15s",
+      notes: "Sit upright, grip the side of the chair with your left hand. Tilt your head toward the opposite shoulder until you feel a stretch in the left side of the neck. Hold the chair firmly so the shoulder does not shrug; gaze forward.",
+      equipment: ["Chair"],
+    },
+    {
+      name: "Seated Upper Trap Stretch, Right: 3 rounds × 30s/15s",
+      notes: "Sit upright, grip the side of the chair with your right hand. Tilt your head toward the opposite shoulder until you feel a stretch in the right side of the neck. Hold the chair firmly so the shoulder does not shrug; gaze forward.",
+      equipment: ["Chair"],
+    },
+    {
+      name: "Foam Roller Pec Stretch: 3 rounds × 30s/15s",
+      notes: "Lie lengthwise on the roller, arms out at shoulder height, elbows straight. Let the arms relax toward the floor until you feel a stretch in the chest and shoulders. Head and neck stay supported on the roller; core tight, no low-back arch.",
       equipment: ["Foam Roller"],
     },
     {
-      name: "Thread the Needle (50s)",
-      notes: "All fours, roller out to one side. Reach the free arm under and rotate for a gentle spine stretch. 5 reps each side.",
+      name: "90/90 ER Walk Out, Left: 2 rounds × 45s/15s",
+      notes: "Band anchored in a doorframe, held in the left hand, facing the anchor, elbow bent at shoulder height. Keeping the elbow up and the hand rotated toward the ceiling, step back until the band is tense, pause, then return. 10 reps per set. Fight the band with the back of the shoulder.",
+      equipment: ["Bands"],
+    },
+    {
+      name: "90/90 ER Walk Out, Right: 2 rounds × 45s/15s",
+      notes: "Band anchored in a doorframe, held in the right hand, facing the anchor, elbow bent at shoulder height. Keeping the elbow up and the hand rotated toward the ceiling, step back until the band is tense, pause, then return. 10 reps per set. Fight the band with the back of the shoulder.",
+      equipment: ["Bands"],
+    },
+    {
+      name: "90/90 IR Walk Out, Left: 2 rounds × 45s/15s",
+      notes: "Band anchored in a doorframe, held in the left hand, facing away from the anchor, elbow bent at shoulder height. Keeping the elbow up and the hand rotated toward the ceiling, step forward until the band is tense, pause, then return. 10 reps per set. Fight the band with the front of the shoulder.",
+      equipment: ["Bands"],
+    },
+    {
+      name: "90/90 IR Walk Out, Right: 2 rounds × 45s/15s",
+      notes: "Band anchored in a doorframe, held in the right hand, facing away from the anchor, elbow bent at shoulder height. Keeping the elbow up and the hand rotated toward the ceiling, step forward until the band is tense, pause, then return. 10 reps per set. Fight the band with the front of the shoulder.",
+      equipment: ["Bands"],
+    },
+    {
+      name: "Seated Alternating Uppercut: 3 rounds × 30s/15s",
+      notes: "Sit upright, elbows bent at your sides, hands in fists. Keeping the elbow bent, punch one arm upward, return, then switch arms. 10 reps per set. Drive with the arms; the rest of the body stays still.",
+      equipment: ["Chair"],
+    },
+    {
+      name: "Foam Roller Thoracic Extension: 3 rounds × 45s/15s",
+      notes: "Sit with the roller across your mid back, hands behind your neck. Elbows tucked toward each other, lean back over the roller until you feel a stretch in the mid back, pause, return. 10 reps per set. Support the head; core tight, no low-back arch.",
       equipment: ["Foam Roller"],
     },
     {
-      name: "Band External Rotation (45s)",
-      notes: "Band anchored at elbow height, towel between elbow and ribs. Rotate out from the stomach, 10 reps with a 1s hold.",
-      equipment: ["Bands"],
+      name: "Dowel Kneeling Thoracic Extension Stretch: 3 rounds × 30s/15s",
+      notes: "Kneel holding a dowel, elbows bent and propped on a bench or chair in front of you. Sit the hips back toward the heels while reaching the chest toward the floor until you feel a stretch in the mid back. Rotate the forearms out, wrists wider than elbows; core tight.",
+      equipment: ["Dowel", "Bench"],
     },
     {
-      name: "ER 90/90: 2 rounds × 45s/15s",
-      notes: "Arm flexed to 90, elbow bent 90. Bring the forearm up to point at the ceiling, shoulder blade retracted and down the whole time. 10 reps per set.",
-      equipment: ["Bands"],
+      name: "Backward Scapular Circle: 2 rounds × 30s/15s",
+      notes: "Sit upright. Circle the shoulder blades backward: shrug up, pull back, draw down. 10 reps per set. Move only the shoulder blades; the rest of the body stays still.",
+      equipment: ["Chair"],
     },
     {
-      name: "ER Uppercut (45s)",
-      notes: "Elbow tucked to the side, rotate out to neutral, then punch up. Wrist, elbow, and shoulder in one straight line. 10 reps.",
-      equipment: ["Bands"],
-    },
-    {
-      name: "Serratus Wall Slide (45s)",
-      notes: "Band around the wrists, forearms on the wall. Protract the shoulder blades, slide the arms up, return. 10 reps with a 1s hold.",
-      equipment: ["Bands"],
+      name: "Forward Scapular Circle: 2 rounds × 30s/15s",
+      notes: "Sit upright. Circle the shoulder blades forward: shrug up, pull forward, draw down. 10 reps per set. Move only the shoulder blades; the rest of the body stays still.",
+      equipment: ["Chair"],
     },
   ],
 };
 
 const ptShoulderSession: WorkoutSession = {
   title: "PT Shoulder Rehab",
-  subtitle: "Daily - HEP2go 52JD3S2",
+  subtitle: "Daily - PT Session 1 (Megan Gallagher)",
   category: "posture",
   icon: "🦾",
   timeOfDay: "Anytime daily (pairs well with Egoscue)",
