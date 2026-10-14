@@ -44,7 +44,7 @@ describe("Sync flow integration", () => {
     expect(json.data.updatedAt).toBeDefined();
   });
 
-  it("deep-merges recovery data across multiple POSTs", async () => {
+  it("replaces a recovery date wholesale; the client sends the full entry (F4)", async () => {
     // POST Eight Sleep recovery
     await POST(makePost({
       recovery: {
@@ -55,11 +55,12 @@ describe("Sync flow integration", () => {
       },
     }));
 
-    // POST Oura recovery for same date
+    // Client pulled the server entry, added Oura, and pushes the whole day
     await POST(makePost({
       recovery: {
         "2026-03-31": {
           date: "2026-03-31",
+          eightSleep: { sleepFitnessScore: 86, hrv: 42 },
           oura: { readinessScore: 82 },
         },
       },

@@ -32,12 +32,13 @@ export function rateLimit(
 ): { success: boolean; remaining: number } {
   cleanup();
 
-  const ip = getClientIP(req);
+  // Per route + IP, so a chatty route cannot spend another route's budget.
+  const id = `${req.nextUrl.pathname}|${getClientIP(req)}`;
   const now = Date.now();
-  const entry = store.get(ip);
+  const entry = store.get(id);
 
   if (!entry || now > entry.resetAt) {
-    store.set(ip, { count: 1, resetAt: now + opts.windowMs });
+    store.set(id, { count: 1, resetAt: now + opts.windowMs });
     return { success: true, remaining: opts.limit - 1 };
   }
 

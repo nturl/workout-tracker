@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+/** A record whose invalid entries are dropped instead of failing the whole body,
+ *  so one bad value cannot block every other change in the same push. */
+const lenientRecord = <T extends z.ZodType>(value: T) =>
+  z.record(z.string(), value.optional().catch(undefined)).transform((rec) =>
+    Object.fromEntries(Object.entries(rec).filter(([, v]) => v !== undefined)) as Record<string, z.output<T>>,
+  );
+
 const exerciseLogSchema = z.object({
   weight: z.number().nonnegative().optional(),
   reps: z.number().nonnegative().optional(),
@@ -83,11 +90,11 @@ export const syncBodySchema = z.object({
   // client bundle, merged the way it always was.
   syncMode: z.literal("delta").optional(),
   tombstones: tombstonesSchema.optional(),
-  completions: z.record(z.string(), z.boolean()).optional(),
-  logs: z.record(z.string(), logEntrySchema).optional(),
+  completions: lenientRecord(z.boolean()).optional(),
+  logs: lenientRecord(logEntrySchema).optional(),
   level: z.enum(["beginner", "intermediate", "advanced"]).optional(),
-  recovery: z.record(z.string(), recoveryEntrySchema).optional(),
-  habits: z.record(z.string(), z.record(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.boolean())).optional(),
+  recovery: lenientRecord(recoveryEntrySchema).optional(),
+  habits: lenientRecord(z.record(dateKey, z.boolean())).optional(),
   habitDefs: z.array(habitDefSchema).max(30).optional(),
   // The server-assigned version the client's habitDefs is based on (its CAS
   // token), not a wall clock. The server mints the real version; the client only

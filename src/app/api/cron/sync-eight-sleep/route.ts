@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRedis } from "@/lib/redis";
+import { updateUserData } from "@/lib/userData";
 import { parseEightSleepSMS } from "@/lib/twilioParser";
 
 interface ImportEntry {
@@ -23,9 +24,7 @@ async function importEightSleepData(entries: ImportEntry[]): Promise<NextRespons
     }
     userId = userKeys[0].replace("user:", "").replace(":data", "");
   }
-  const existingRaw = await redis.get(`user:${userId}:data`);
-  const existing = existingRaw ? JSON.parse(existingRaw) : {};
-  const recovery = existing.recovery || {};
+  const parsedByDate: Record<string, object> = {};
 
   for (const entry of entries) {
     const parsed = parseEightSleepSMS(entry.text);
@@ -34,23 +33,22 @@ async function importEightSleepData(entries: ImportEntry[]): Promise<NextRespons
       continue;
     }
 
-    const dayEntry = recovery[entry.date] || { date: entry.date };
-    dayEntry.eightSleep = {
-      ...dayEntry.eightSleep,
-      ...parsed,
-      autoImported: true,
-      importedAt: new Date().toISOString(),
-    };
-    recovery[entry.date] = dayEntry;
+    parsedByDate[entry.date] = parsed;
     results.push({ date: entry.date, status: "imported", metrics: parsed as unknown as Record<string, unknown> });
   }
 
   const importedCount = results.filter((r) => r.status === "imported").length;
   if (importedCount > 0) {
-    existing.recovery = recovery;
-    existing.updatedAt = Date.now();
-    existing.eightSleepLastSynced = new Date().toISOString();
-    await redis.set(`user:${userId}:data`, JSON.stringify(existing));
+    const importedAt = new Date().toISOString();
+    await updateUserData(userId, (existing) => {
+      const recovery = (existing.recovery || {}) as Record<string, { date: string; eightSleep?: object }>;
+      for (const [date, parsed] of Object.entries(parsedByDate)) {
+        const dayEntry = recovery[date] || { date };
+        dayEntry.eightSleep = { ...dayEntry.eightSleep, ...parsed, autoImported: true, importedAt };
+        recovery[date] = dayEntry;
+      }
+      return { ...existing, recovery, updatedAt: Date.now(), eightSleepLastSynced: importedAt };
+    });
   }
 
   return NextResponse.json({

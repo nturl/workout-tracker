@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { getRedis } from "@/lib/redis";
+import { updateUserData } from "@/lib/userData";
 import { fetchDailyData } from "@/lib/oura";
 import { getTokens } from "@/lib/oauthTokens";
 import { rateLimit, rateLimitResponse, checkCsrf, csrfResponse } from "@/lib/rateLimit";
@@ -30,10 +30,6 @@ export async function POST(req: NextRequest) {
     }
 
     const datesToSync = [dateKey(yesterday), dateKey(now)];
-    const redis = getRedis();
-    const existingRaw = await redis.get(`user:${userId}:data`);
-    const existing = existingRaw ? JSON.parse(existingRaw) : {};
-    const recovery = existing.recovery || {};
 
     const syncedDates: string[] = [];
     const results: Record<string, unknown> = {};
@@ -43,9 +39,6 @@ export async function POST(req: NextRequest) {
         const ouraData = await fetchDailyData(userId, date);
         if (!ouraData) continue;
 
-        const dayEntry = recovery[date] || { date };
-        dayEntry.oura = { ...dayEntry.oura, ...ouraData };
-        recovery[date] = dayEntry;
         syncedDates.push(date);
         results[date] = ouraData;
       } catch (err) {
@@ -54,9 +47,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (syncedDates.length > 0) {
-      existing.recovery = recovery;
-      existing.updatedAt = Date.now();
-      await redis.set(`user:${userId}:data`, JSON.stringify(existing));
+      // Re-read and merge only the Oura fields now, so a push that landed while
+      // we awaited Oura is not overwritten.
+      await updateUserData(userId, (existing) => {
+        const recovery = (existing.recovery || {}) as Record<string, { date: string; oura?: object }>;
+        for (const date of syncedDates) {
+          const dayEntry = recovery[date] || { date };
+          dayEntry.oura = { ...dayEntry.oura, ...(results[date] as object) };
+          recovery[date] = dayEntry;
+        }
+        return { ...existing, recovery, updatedAt: Date.now() };
+      });
     }
 
     return NextResponse.json({

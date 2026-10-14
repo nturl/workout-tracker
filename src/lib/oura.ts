@@ -128,7 +128,7 @@ export async function fetchDailyData(
   const result: RecoveryEntry["oura"] = {};
 
   if (readiness) {
-    result.readinessScore = readiness.score;
+    if (readiness.score != null) result.readinessScore = readiness.score;
     // temperature_deviation is a raw value (degrees C offset from baseline)
     if (readiness.temperature_deviation != null) {
       result.bodyTemp = readiness.temperature_deviation;
@@ -136,7 +136,7 @@ export async function fetchDailyData(
   }
 
   if (dailySleep) {
-    result.sleepScore = dailySleep.score;
+    if (dailySleep.score != null) result.sleepScore = dailySleep.score;
     // Contributors are scores (0-100), use for restfulness/timing
     if (dailySleep.contributors) {
       const c = dailySleep.contributors;

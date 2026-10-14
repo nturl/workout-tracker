@@ -3,7 +3,7 @@ import { getRedis } from "@/lib/redis";
 import { auth } from "@clerk/nextjs/server";
 import { syncBodySchema } from "@/lib/validators";
 import { rateLimit, rateLimitResponse, checkCsrf, csrfResponse } from "@/lib/rateLimit";
-import { withRetry } from "@/lib/retry";
+import { updateUserData } from "@/lib/userData";
 import { habitDefsEqual, type HabitDef } from "@/lib/habits";
 
 /* ===========================================================================
@@ -136,15 +136,18 @@ export async function POST(req: NextRequest) {
     // habitDefs + its version are resolved separately under the WATCH/MULTI
     // transaction below (server-assigned versioning), not blind-merged here.
 
-    const redis = getRedis();
-    const key = `user:${userId}:data`;
-
-    // Deep-merge helper for nested objects (recovery dates, logs, completions)
-    function deepMerge(existing: Record<string, unknown>, incoming: Record<string, unknown>): Record<string, unknown> {
+    // Deep-merge helper for nested objects (completions, habits). logs and
+    // recovery are the exception: each key is replaced wholesale, because the
+    // client sends the full entry and a field it cleared would otherwise
+    // survive the merge forever.
+    const replacePerKey = new Set(["logs", "recovery"]);
+    function deepMerge(existing: Record<string, unknown>, incoming: Record<string, unknown>, top = true): Record<string, unknown> {
       const result = { ...existing };
       for (const [k, v] of Object.entries(incoming)) {
-        if (v && typeof v === "object" && !Array.isArray(v) && existing[k] && typeof existing[k] === "object" && !Array.isArray(existing[k])) {
-          result[k] = deepMerge(existing[k] as Record<string, unknown>, v as Record<string, unknown>);
+        if (top && replacePerKey.has(k) && v && typeof v === "object" && existing[k] && typeof existing[k] === "object") {
+          result[k] = { ...(existing[k] as object), ...v };
+        } else if (v && typeof v === "object" && !Array.isArray(v) && existing[k] && typeof existing[k] === "object" && !Array.isArray(existing[k])) {
+          result[k] = deepMerge(existing[k] as Record<string, unknown>, v as Record<string, unknown>, false);
         } else {
           result[k] = v;
         }
@@ -180,10 +183,7 @@ export async function POST(req: NextRequest) {
     // Use WATCH/MULTI for optimistic locking with retry on race conditions
     let resolvedDefs: HabitDef[] | undefined;
     let resolvedVersion = 0;
-    await withRetry(async () => {
-      await redis.watch(key);
-      const existingRaw = await redis.get(key);
-      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+    await updateUserData(userId, (existing) => {
 
       // Server-authoritative habitDefs version (CAS on the client's base version).
       const resolution = resolveHabitDefs(existing, habitDefs, habitDefsVersion);
@@ -199,12 +199,8 @@ export async function POST(req: NextRequest) {
       // Drop the dead client-clock field so a not-yet-updated old client can't
       // resurrect it as a merge key.
       delete merged.habitDefsUpdatedAt;
-
-      const result = await redis.multi().set(key, JSON.stringify(merged)).exec();
-      if (!result) {
-        throw new Error("Transaction conflict");
-      }
-    }, { maxRetries: 3, baseDelayMs: 100 });
+      return merged;
+    });
     // Return the canonical list + version so the client adopts it (its edit was
     // accepted -> new version; rejected/stale -> the winning list) and converges.
     return NextResponse.json({ success: true, habitDefs: resolvedDefs, habitDefsVersion: resolvedVersion });

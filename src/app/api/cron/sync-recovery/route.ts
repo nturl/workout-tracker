@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRedis } from "@/lib/redis";
+import { updateUserData } from "@/lib/userData";
 import { fetchDailyData } from "@/lib/oura";
 import { getTokens } from "@/lib/oauthTokens";
 
@@ -30,9 +31,7 @@ async function syncAllUsers(): Promise<NextResponse> {
         continue;
       }
 
-      const existingRaw = await redis.get(`user:${userId}:data`);
-      const existing = existingRaw ? JSON.parse(existingRaw) : {};
-      const recovery = existing.recovery || {};
+      const fetched: Record<string, object> = {};
 
       for (const date of datesToSync) {
         try {
@@ -42,9 +41,7 @@ async function syncAllUsers(): Promise<NextResponse> {
             continue;
           }
 
-          const dayEntry = recovery[date] || { date };
-          dayEntry.oura = { ...dayEntry.oura, ...ouraData };
-          recovery[date] = dayEntry;
+          fetched[date] = ouraData;
           userResult.synced.push(date);
         } catch (error) {
           const msg = error instanceof Error ? error.message : "Unknown";
@@ -53,10 +50,16 @@ async function syncAllUsers(): Promise<NextResponse> {
       }
 
       if (userResult.synced.length > 0) {
-        existing.recovery = recovery;
-        existing.updatedAt = Date.now();
-        existing.ouraLastSynced = new Date().toISOString();
-        await redis.set(`user:${userId}:data`, JSON.stringify(existing));
+        // Apply only the Oura fields to a fresh read (see updateUserData).
+        await updateUserData(userId, (existing) => {
+          const recovery = (existing.recovery || {}) as Record<string, { date: string; oura?: object }>;
+          for (const [date, ouraData] of Object.entries(fetched)) {
+            const dayEntry = recovery[date] || { date };
+            dayEntry.oura = { ...dayEntry.oura, ...ouraData };
+            recovery[date] = dayEntry;
+          }
+          return { ...existing, recovery, updatedAt: Date.now(), ouraLastSynced: new Date().toISOString() };
+        });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";

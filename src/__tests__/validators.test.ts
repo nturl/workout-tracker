@@ -21,11 +21,14 @@ describe("syncBodySchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects invalid feeling value", () => {
+  it("drops a log entry with an invalid feeling value without rejecting the body", () => {
     const result = syncBodySchema.safeParse({
-      logs: { key: { feeling: 10 } },
+      completions: { a: true },
+      logs: { key: { feeling: 10 }, ok: { feeling: 3 } },
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    expect(result.data?.logs).toEqual({ ok: { feeling: 3 } });
+    expect(result.data?.completions).toEqual({ a: true });
   });
 
   it("accepts valid habitDefs with a version", () => {
