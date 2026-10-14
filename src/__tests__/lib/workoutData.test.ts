@@ -317,8 +317,8 @@ describe("workoutData - exercise demo stills", () => {
       Object.values(s.levels).flatMap((l) => (l.exercises ?? []).map((e) => e.image).filter(Boolean))));
     expect(names.length).toBeGreaterThan(0);
     for (const n of names) {
-      expect(n).toMatch(/^[a-z0-9-]+\.jpg$/);
-      expect(existsSync(path.join(process.cwd(), "src/assets/exercises", n!)), n).toBe(true);
+      expect(n).toMatch(/^[a-z0-9-]+$/);
+      expect(existsSync(path.join(process.cwd(), "src/assets/exercises", `${n}.jpg`)), n).toBe(true);
     }
   });
 });

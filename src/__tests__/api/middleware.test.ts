@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
-import { isPublicRoute } from "@/middleware";
+import { isPublicRoute, config } from "@/middleware";
 
 // BUG-12: any route NOT matched by isPublicRoute gets clerkMiddleware's
 // auth.protect() run against it. protect()'s unauthenticated-request
@@ -32,5 +32,18 @@ describe("middleware isPublicRoute (BUG-12)", () => {
   it("still gates an unrelated protected API route", () => {
     const req = new NextRequest("http://localhost:3000/api/sync");
     expect(isPublicRoute(req)).toBe(false);
+  });
+});
+
+describe("middleware matcher", () => {
+  // The matcher skips static-looking paths (.jpg, .png, ...). A route that
+  // calls auth() must not end in one: without clerkMiddleware, auth() throws
+  // and the route 500s (the exercise-image route did, with a .jpg URL).
+  const matcher = new RegExp(`^${config.matcher[0]}$`);
+  it("runs on the extension-less exercise image route", () => {
+    expect(matcher.test("/api/exercise-image/foam-roller-pec-stretch")).toBe(true);
+  });
+  it("still skips real static files", () => {
+    expect(matcher.test("/icon-192.png")).toBe(false);
   });
 });

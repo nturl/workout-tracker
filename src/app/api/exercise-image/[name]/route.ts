@@ -6,7 +6,9 @@ import path from "path";
 // Exercise demo stills captured from Noel's PT app. They are the provider's
 // images, so they live outside public/ and are only served to a signed-in
 // user. next.config.mjs traces src/assets/exercises into this function.
-const NAME = /^[a-z0-9-]+\.jpg$/;
+// The URL carries no ".jpg": middleware.ts skips static-looking paths, and
+// auth() throws when clerkMiddleware has not run.
+const NAME = /^[a-z0-9-]+$/;
 
 export async function GET(_req: NextRequest, { params }: { params: { name: string } }) {
   const { userId } = await auth();
@@ -14,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { name: strin
   if (!NAME.test(params.name)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {
-    const file = await readFile(path.join(process.cwd(), "src/assets/exercises", params.name));
+    const file = await readFile(path.join(process.cwd(), "src/assets/exercises", `${params.name}.jpg`));
     return new NextResponse(file, {
       headers: {
         "Content-Type": "image/jpeg",
