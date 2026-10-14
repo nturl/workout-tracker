@@ -9,7 +9,7 @@
   --bg-input: #ffffff;
   --text-primary: #0b1220;
   --text-secondary: #5b6472;
-  --text-muted: #98a1ae;
+  --text-muted: #6b7280;
   --border: transparent;
   --border-active: #e2e8f0;
   --card-border: rgba(15, 23, 42, 0.06);
@@ -50,7 +50,7 @@
   --bg-input: #1a1a1d;
   --text-primary: #ffffff;
   --text-secondary: #a1a1a1;
-  --text-muted: #6a6a6a;
+  --text-muted: #8a8a8a;
   --border: transparent;
   --border-active: #282828;
   --card-border: rgba(255, 255, 255, 0.07);

@@ -21,7 +21,7 @@ import {
   type ClockController,
 } from "@/lib/audio";
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
-import type { CircuitExercise } from "@/lib/workoutData";
+import { splitPrescription, type CircuitExercise } from "@/lib/workoutData";
 
 // Phase hues ride the design tokens: work/complete = brand accent, rest =
 // warning, idle = muted. Alphas go through color-mix so the var() colors can
@@ -253,6 +253,8 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
           setPhase("done");
           setRunning(false);
           releaseActiveTimer(timerTokenRef.current);
+          releaseWakeLock(wakeLockRef.current).catch(() => {});
+          wakeLockRef.current = null;
           beepDone();
           return;
         }
@@ -384,6 +386,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
   };
 
   const reset = async () => {
+    if ((phase === "work" || phase === "rest") && !window.confirm("Reset the circuit to the start?")) return;
     setRunning(false);
     setShowCountdown(false);
     setPhase("idle");
@@ -411,6 +414,9 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
         setPhase("done");
         setRunning(false);
         releaseActiveTimer(timerTokenRef.current);
+        releaseWakeLock(wakeLockRef.current).catch(() => {});
+        wakeLockRef.current = null;
+        beepDone();
         return;
       }
       setCurrentRound(nextRound);
@@ -599,8 +605,13 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
             {(phase === "work" || phase === "rest") && (
               <>
                 <p className="text-sm font-bold text-white leading-tight line-clamp-2">
-                  {centerName}
+                  {centerName && splitPrescription(centerName).title}
                 </p>
+                {showInnerRounds && (phase === "work" || innerRound < exerciseRounds) && (
+                  <p className="text-sm font-semibold tabular-nums" style={{ color: "rgba(255,255,255,0.8)" }}>
+                    Set {phase === "work" ? innerRound : innerRound + 1} of {exerciseRounds}
+                  </p>
+                )}
                 {phase === "work" && isBilateral && (
                   showSwitch ? (
                     <p className="text-xs font-black text-warning animate-pulse">SWITCH SIDES</p>
@@ -621,8 +632,8 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
                     Up next
                   </p>
                 ) : nextExercise || currentRound < rounds ? (
-                  <p className="text-[11px] truncate max-w-full" style={{ color: "rgba(255,255,255,0.45)" }}>
-                    Next: {nextLabel}
+                  <p className="text-[11px] leading-tight line-clamp-2 max-w-full" style={{ color: "rgba(255,255,255,0.6)" }}>
+                    Next: {splitPrescription(nextLabel).title}
                   </p>
                 ) : (
                   <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.45)" }}>
@@ -643,7 +654,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
                 <button
                   key={r}
                   onClick={() => setSelectedRounds(r)}
-                  className="w-8 h-8 rounded-full text-xs font-bold pressable inline-touch"
+                  className="w-11 h-11 rounded-full text-xs font-bold pressable"
                   style={selectedRounds === r
                     ? { background: "var(--accent)", color: "var(--accent-contrast)" }
                     : { color: "rgba(255,255,255,0.55)" }}

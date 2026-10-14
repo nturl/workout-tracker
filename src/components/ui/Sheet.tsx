@@ -69,7 +69,7 @@ export function Sheet({ open, onClose, children, title, subtitle }: SheetProps) 
     <LazyMotion features={domAnimation} strict>
       <AnimatePresence>
         {open && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby={titleId}>
             <m.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

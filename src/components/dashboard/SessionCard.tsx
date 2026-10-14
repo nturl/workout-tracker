@@ -4,6 +4,7 @@ import { useState, memo, useMemo, useCallback } from "react";
 import {
   categoryColors,
   parseTimedExercises,
+  splitPrescription,
   type WorkoutSession,
   type Level,
   type Exercise,
@@ -377,8 +378,9 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
                 {detail.exercises.map((ex, i) => {
                   const secMatch = ex.name.match(/\((\d+)(?:-\d+)?\s*s(?:ec)?\b/);
                   const minMatch = ex.name.match(/\((\d+)(?:-\d+)?\s*min\b/);
-                  const cleanName = ex.name.replace(/\s*\(\d+(?:-\d+)?\s*(?:s|sec|min)\b[^)]*\)/, "").trim();
-                  const duration = secMatch ? `${secMatch[1]}s` : minMatch ? `${minMatch[1]}m` : null;
+                  const { title, chip } = splitPrescription(ex.name);
+                  const cleanName = title.replace(/\s*\(\d+(?:-\d+)?\s*(?:s|sec|min)\b[^)]*\)/, "").trim();
+                  const duration = secMatch ? `${secMatch[1]}s` : minMatch ? `${minMatch[1]}m` : chip;
                   const checkable = checklistMode || timerChecklistMode;
                   const slug = checkable ? exerciseSlugs[i] : "";
                   const done = checkable ? isExerciseDone(slug) : false;

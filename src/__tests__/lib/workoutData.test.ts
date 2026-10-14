@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  splitPrescription,
   weeklyPlan,
   superSlowExercises,
   superSlowRepProtocol,
@@ -319,5 +320,17 @@ describe("workoutData - exercise demo stills", () => {
       expect(n).toMatch(/^[a-z0-9-]+\.jpg$/);
       expect(existsSync(path.join(process.cwd(), "src/assets/exercises", n!)), n).toBe(true);
     }
+  });
+});
+
+describe("workoutData - splitPrescription", () => {
+  it("splits 'Name: N rounds × Xs/Ys' into a title and a set chip", () => {
+    expect(splitPrescription("Foam Roller Pec Stretch: 3 rounds × 30s/15s")).toEqual({ title: "Foam Roller Pec Stretch", chip: "3 × 30s" });
+    expect(splitPrescription("Recovery: 4 rounds × 4 min/4 min")).toEqual({ title: "Recovery", chip: "4 × 4min" });
+  });
+
+  it("leaves names without a ': N rounds' suffix whole", () => {
+    expect(splitPrescription("8 rounds × 20s/10s")).toEqual({ title: "8 rounds × 20s/10s", chip: null });
+    expect(splitPrescription("Wall Sit (30s)")).toEqual({ title: "Wall Sit (30s)", chip: null });
   });
 });

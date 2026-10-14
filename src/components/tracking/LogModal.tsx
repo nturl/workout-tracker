@@ -76,7 +76,7 @@ export function LogModal({ session, logKey, logs, level, onSave, onClose }: LogM
           <div className="flex gap-1.5 mb-2">
             {DURATION_PRESETS.map((m) => (
               <button key={m} onClick={() => setDuration(m)}
-                className="flex-1 py-1.5 rounded-full text-xs font-bold tabular-nums pressable inline-touch"
+                className="flex-1 h-11 rounded-full text-xs font-bold tabular-nums pressable"
                 style={{
                   background: duration === m ? "var(--accent)" : "var(--bg-elevated)",
                   color: duration === m ? "var(--accent-contrast)" : "var(--text-secondary)",
@@ -86,15 +86,15 @@ export function LogModal({ session, logKey, logs, level, onSave, onClose }: LogM
             ))}
           </div>
           <input id="log-duration" type="number" value={duration || ""} onChange={(e) => setDuration(parseInt(e.target.value) || 0)} placeholder="Custom minutes"
-            className="input-field w-full h-11 px-4 rounded-button border border-border-active outline-none transition-all text-[15px] leading-[22px] tabular-nums bg-surface-input text-content-primary" />
+            className="input-field w-full h-11 px-4 rounded-button border border-border-active outline-none transition-all text-base leading-[22px] tabular-nums bg-surface-input text-content-primary" />
         </div>
         <div>
           <label htmlFor="log-notes" className="text-xs font-semibold uppercase tracking-[0.08em] block mb-2 text-content-secondary">
             Notes <span className="normal-case tracking-normal font-normal font-sans text-content-muted">(weights, reps, observations)</span>
           </label>
           <textarea id="log-notes" value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="Chest press: 135lbs, ~100s TUT..." rows={4}
-            className="input-field w-full px-4 py-3 rounded-button border border-border-active outline-none transition-all resize-none text-[15px] leading-[22px] bg-surface-input text-content-primary" />
+            placeholder="Chest press: 135lbs, ~100s TUT..." rows={4} maxLength={2000}
+            className="input-field w-full px-4 py-3 rounded-button border border-border-active outline-none transition-all resize-none text-base leading-[22px] bg-surface-input text-content-primary" />
         </div>
         {exercises.length > 0 && (
           <div>
@@ -117,21 +117,21 @@ export function LogModal({ session, logKey, logs, level, onSave, onClose }: LogM
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label htmlFor={`ex-weight-${slug}`} className="text-[10px] font-medium block mb-1 text-content-muted">Weight</label>
-                          <input id={`ex-weight-${slug}`} type="number" value={log.weight ?? ""} placeholder="lbs"
+                          <input id={`ex-weight-${slug}`} type="number" inputMode="decimal" value={log.weight ?? ""} placeholder="lbs"
                             onChange={(e) => updateExercise(slug, "weight", e.target.value ? Number(e.target.value) : undefined)}
-                            className="input-field w-full px-2 py-1.5 rounded-lg border border-border text-sm font-mono outline-none bg-surface-input text-content-primary" />
+                            className="input-field w-full px-2 py-1.5 rounded-lg border border-border text-base font-mono outline-none bg-surface-input text-content-primary" />
                         </div>
                         <div>
                           <label htmlFor={`ex-reps-${slug}`} className="text-[10px] font-medium block mb-1 text-content-muted">Reps</label>
-                          <input id={`ex-reps-${slug}`} type="number" value={log.reps ?? ""} placeholder="#"
+                          <input id={`ex-reps-${slug}`} type="number" inputMode="decimal" value={log.reps ?? ""} placeholder="#"
                             onChange={(e) => updateExercise(slug, "reps", e.target.value ? Number(e.target.value) : undefined)}
-                            className="input-field w-full px-2 py-1.5 rounded-lg border border-border text-sm font-mono outline-none bg-surface-input text-content-primary" />
+                            className="input-field w-full px-2 py-1.5 rounded-lg border border-border text-base font-mono outline-none bg-surface-input text-content-primary" />
                         </div>
                         <div>
                           <label htmlFor={`ex-sets-${slug}`} className="text-[10px] font-medium block mb-1 text-content-muted">Sets</label>
-                          <input id={`ex-sets-${slug}`} type="number" value={log.sets ?? ""} placeholder="#"
+                          <input id={`ex-sets-${slug}`} type="number" inputMode="decimal" value={log.sets ?? ""} placeholder="#"
                             onChange={(e) => updateExercise(slug, "sets", e.target.value ? Number(e.target.value) : undefined)}
-                            className="input-field w-full px-2 py-1.5 rounded-lg border border-border text-sm font-mono outline-none bg-surface-input text-content-primary" />
+                            className="input-field w-full px-2 py-1.5 rounded-lg border border-border text-base font-mono outline-none bg-surface-input text-content-primary" />
                         </div>
                       </div>
                     </div>
@@ -145,8 +145,12 @@ export function LogModal({ session, logKey, logs, level, onSave, onClose }: LogM
       <div className="p-5 flex gap-3 border-t" style={{ borderColor: "var(--card-border)" }}>
         <button onClick={onClose} className="flex-1 h-11 rounded-button font-semibold text-[13px] leading-4 pressable bg-surface-elevated text-content-secondary ring-1 ring-[var(--card-border)]">Cancel</button>
         <button onClick={() => {
-          const hasExerciseData = Object.values(exerciseLogs).some((l) => l.weight || l.reps || l.sets);
+          // Spread the existing entry and keep every exercise row, not just
+          // ones with weight/reps/sets: timer and checklist check-offs live
+          // in exerciseLogs as { completed: true } and must survive a save.
+          const hasExerciseData = Object.keys(exerciseLogs).length > 0;
           onSave(logKey, {
+            ...existing,
             notes, duration, feeling,
             completedAt: new Date().toISOString(),
             ...(hasExerciseData ? { exerciseLogs } : {}),

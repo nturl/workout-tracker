@@ -215,8 +215,8 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
   return (
     <>
       <header className="glass sticky top-0 z-30">
-        <div className="max-w-lg mx-auto px-5 pt-6 pb-5">
-          <div className="flex items-end justify-between mb-5">
+        <div className="max-w-lg mx-auto px-5 pt-6 pb-4">
+          <div className="flex items-end justify-between">
             <div>
               <h1 className="text-[26px] font-display font-bold gradient-text leading-none">Workouts</h1>
               <div className="flex items-center gap-2 mt-1.5">
@@ -227,14 +227,16 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
               </div>
             </div>
           </div>
-
-          <div className="mb-5">
-            <StreakCounter streak={streak} weekDone={weekDone} weekTotal={weekTotal} bestStreak={bestStreak} />
-          </div>
-
-          <WeekRhythm selectedDay={selectedDay} onSelectDay={setSelectedDay} weekOffset={weekOffset} onChangeWeek={setWeekOffset} />
         </div>
       </header>
+
+      <div className="max-w-lg mx-auto px-5 pt-4">
+        <div className="mb-5">
+          <StreakCounter streak={streak} weekDone={weekDone} weekTotal={weekTotal} bestStreak={bestStreak} />
+        </div>
+
+        <WeekRhythm selectedDay={selectedDay} onSelectDay={setSelectedDay} weekOffset={weekOffset} onChangeWeek={setWeekOffset} />
+      </div>
 
       <div className="max-w-lg mx-auto px-5 mt-5 pb-24">
         {activePlan && (

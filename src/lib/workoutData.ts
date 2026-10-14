@@ -113,6 +113,15 @@ export function parseTimedExercise(ex: Exercise, index: number): ParsedTimedExer
 // recovery row IS the rest (Mitochondrial: "All-out (30-60s)" must flow
 // straight into "Recovery (4 min)" with no 10s filler between). Multi-round
 // blocks keep their inner rest; it is part of the protocol (Tabata 20s/10s).
+// Split a "Name: N rounds × Xs/Ys" exercise name into the movement title and
+// a short set chip ("3 × 30s") for display. Names without a ": N rounds"
+// suffix (Tabata "8 rounds × 20s/10s", "Wall Sit (30s)") pass through whole.
+export function splitPrescription(name: string): { title: string; chip: string | null } {
+  const m = name.match(/^(.+?):\s*(\d+)\s*rounds?\s*[×x*]\s*(\d+\s*(?:s(?:ec)?|min))\s*[/∕]/i);
+  if (!m) return { title: name, chip: null };
+  return { title: m[1].trim(), chip: `${m[2]} × ${m[3].replace(/\s+/g, "")}` };
+}
+
 export function parseTimedExercises(exercises: Exercise[]): ParsedTimedExercise[] {
   const parsed = exercises
     .map(parseTimedExercise)

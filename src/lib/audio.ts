@@ -36,6 +36,9 @@ function getCtx(): AudioContext | null {
 // Call this from every user interaction that may precede a beep (start, resume,
 // skip) since backgrounding can resuspend the context between gestures.
 export function unlockAudio(): void {
+  // Safari 17+: without this, the ring/silent switch mutes every timer cue.
+  const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+  if (session && session.type !== "playback") session.type = "playback";
   const c = getCtx();
   if (!c) return;
   if (c.state === "suspended") {
