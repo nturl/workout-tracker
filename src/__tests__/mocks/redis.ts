@@ -4,7 +4,8 @@ const store = new Map<string, string>();
 
 const mockRedis = {
   get: vi.fn(async (key: string) => store.get(key) || null),
-  set: vi.fn(async (key: string, value: string) => {
+  set: vi.fn(async (key: string, value: string, ...args: unknown[]) => {
+    if (args.includes("NX") && store.has(key)) return null;
     store.set(key, value);
     return "OK";
   }),

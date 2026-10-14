@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendPush, listSubscribedUsers, getPreferences, getPushConfigStatus } from "@/lib/webpush";
+import { getRedis } from "@/lib/redis";
 import {
   buildReminderPayload,
   localTimeParts,
@@ -81,6 +82,13 @@ async function sendReminders(options: { dryRun?: boolean; forceDay?: string } = 
 
         if (options.dryRun) {
           result.details.push({ userId: userId.slice(0, 8), reason: `would send: ${payload.title} — ${payload.body}` });
+          continue;
+        }
+
+        // One reminder per user per local date, even if the cron fires twice.
+        const claimed = await getRedis().set(`reminder:${userId}:${dateKey}:reminder`, "1", "EX", 86400, "NX");
+        if (!claimed) {
+          result.details.push({ userId: userId.slice(0, 8), reason: "already sent today" });
           continue;
         }
 

@@ -165,4 +165,32 @@ describe("/api/cron/send-reminder (web push)", () => {
     const data = await res.json();
     expect(data.sent).toBe(0);
   });
+
+  describe("dedupe (one reminder per user per local date)", () => {
+    function seedInWindow() {
+      const now = new Date();
+      const timeStr = `${String(now.getUTCHours()).padStart(2, "0")}:${String(now.getUTCMinutes()).padStart(2, "0")}`;
+      const times = Object.fromEntries(["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((d) => [d, timeStr]));
+      seedMockRedis({
+        "user:u1:push-subs": JSON.stringify([sub("https://example.com/1")]),
+        "user:u1:push-prefs": JSON.stringify({ reminders: true, completions: true, streakAlerts: true, times, timezone: "UTC" }),
+      });
+    }
+
+    it("a repeated cron invocation in the same window does not send twice", async () => {
+      seedInWindow();
+      await GET(makeGet({}, `Bearer ${CRON_SECRET}`));
+      const second = await (await GET(makeGet({}, `Bearer ${CRON_SECRET}`))).json();
+      expect(mockSendNotification).toHaveBeenCalledTimes(1);
+      expect(second.sent).toBe(0);
+      expect(second.details[0].reason).toContain("already sent");
+    });
+
+    it("a ?test=1 dry run does not claim the slot", async () => {
+      seedInWindow();
+      await GET(makeGet({ test: "1" }, `Bearer ${CRON_SECRET}`));
+      await GET(makeGet({}, `Bearer ${CRON_SECRET}`));
+      expect(mockSendNotification).toHaveBeenCalledTimes(1);
+    });
+  });
 });

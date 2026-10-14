@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendPush, listSubscribedUsers, getPreferences, getPushConfigStatus } from "@/lib/webpush";
+import { getRedis } from "@/lib/redis";
 import {
   buildStatusPayload,
   localTimeParts,
@@ -90,6 +91,16 @@ async function sendStatusUpdates(
           if (options.dryRun) {
             result.details.push({ userId: userId.slice(0, 8), reason: `would send: ${payload.title} — ${payload.body}` });
             continue;
+          }
+
+          // One check-in per user per local date per checkpoint, even if the cron
+          // fires twice. An authenticated ?checkpoint= manual trigger bypasses it.
+          if (!options.forceCheckpoint) {
+            const claimed = await getRedis().set(`reminder:${userId}:${dateKey}:${checkpoint}`, "1", "EX", 86400, "NX");
+            if (!claimed) {
+              result.details.push({ userId: userId.slice(0, 8), reason: `${checkpoint}: already sent today` });
+              continue;
+            }
           }
 
           const sendResult = await sendPush(userId, payload);

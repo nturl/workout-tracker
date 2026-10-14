@@ -157,4 +157,40 @@ describe("/api/cron/send-status (web push)", () => {
     expect(detail.reason).toContain("All 1 done");
     expect(detail.reason).toContain("evening check-in");
   });
+
+  describe("dedupe (one check-in per user per local date per checkpoint)", () => {
+    beforeEach(() => {
+      seedMockRedis({
+        "user:u1:push-subs": JSON.stringify([sub("https://example.com/1")]),
+        "user:u1:push-prefs": prefs(),
+      });
+    });
+
+    it("a repeated cron invocation in the same window does not send twice", async () => {
+      await GET(makeGet({}, `Bearer ${CRON_SECRET}`));
+      const second = await (await GET(makeGet({}, `Bearer ${CRON_SECRET}`))).json();
+      expect(mockSendNotification).toHaveBeenCalledTimes(1);
+      expect(second.sent).toBe(0);
+      expect(second.details[0].reason).toContain("already sent");
+    });
+
+    it("afternoon and evening are deduped separately", async () => {
+      await GET(makeGet({}, `Bearer ${CRON_SECRET}`));
+      vi.mocked(localTimeParts).mockReturnValue({ day: "Monday", hhmm: "18:00" });
+      await GET(makeGet({}, `Bearer ${CRON_SECRET}`));
+      expect(mockSendNotification).toHaveBeenCalledTimes(2);
+    });
+
+    it("a ?test=1 dry run does not claim the slot", async () => {
+      await GET(makeGet({ test: "1" }, `Bearer ${CRON_SECRET}`));
+      await GET(makeGet({}, `Bearer ${CRON_SECRET}`));
+      expect(mockSendNotification).toHaveBeenCalledTimes(1);
+    });
+
+    it("an authenticated ?checkpoint= manual trigger still sends after the cron", async () => {
+      await GET(makeGet({}, `Bearer ${CRON_SECRET}`));
+      await GET(makeGet({ checkpoint: "afternoon" }, `Bearer ${CRON_SECRET}`));
+      expect(mockSendNotification).toHaveBeenCalledTimes(2);
+    });
+  });
 });
