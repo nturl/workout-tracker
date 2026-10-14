@@ -11,8 +11,8 @@ function extractUserId(key: string, prefix: string, suffix: string): string {
 }
 
 // POST /api/admin/cleanup - Clean up orphaned Redis keys
-// Removes user:*:data keys without an associated oauth:oura key,
-// and cleans up legacy plaintext phone/recovery/completion/sms keys.
+// Reports users with user:*:data but no oauth:oura key (dry run lists their
+// keys; a real run skips them, since a user with synced data is live), and cleans up legacy plaintext phone/recovery/completion/sms keys.
 export async function POST(req: NextRequest) {
   if (!authorize(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -44,7 +44,13 @@ export async function POST(req: NextRequest) {
     .map((k) => extractUserId(k, "user:", ":data"))
     .filter((id) => !activeUserIds.has(id));
 
+  // Never delete a live user: anyone with synced data stays, Oura or not.
+  const skippedLiveUsers: string[] = [];
   for (const userId of orphanedUserIds) {
+    if (!dryRun && (await redis.exists(`user:${userId}:data`))) {
+      skippedLiveUsers.push(userId);
+      continue;
+    }
     await collectKeys(`user:${userId}:*`, "delete_orphaned_user_key");
   }
 
@@ -57,6 +63,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     dryRun,
     activeUserIds: [...activeUserIds],
+    skippedLiveUsers,
     orphanedCount: results.filter((r) => r.action === "delete_orphaned_user_key").length,
     legacyCount: results.filter((r) => r.action !== "delete_orphaned_user_key").length,
     total: results.length,

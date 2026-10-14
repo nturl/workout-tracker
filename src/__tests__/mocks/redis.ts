@@ -13,6 +13,7 @@ const mockRedis = {
     store.delete(key);
     return 1;
   }),
+  exists: vi.fn(async (key: string) => (store.has(key) ? 1 : 0)),
   ping: vi.fn(async () => "PONG"),
   keys: vi.fn(async (pattern: string) => {
     // Convert Redis glob pattern to regex (handles user:*:ntfy-topic style patterns)

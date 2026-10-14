@@ -123,27 +123,26 @@ describe("/api/admin/cleanup", () => {
       expect(still).not.toBeNull();
     });
 
-    it("deletes orphaned user keys when dryRun=false", async () => {
+    // F10: "no oauth:oura" is not "orphaned" - disconnecting Oura would otherwise
+    // wipe a live user's synced data. A user with user:{id}:data is never deleted.
+    it("refuses to delete a user without Oura who still has synced data (dryRun=false)", async () => {
       seedMockRedis({
-        "user:active-user:oauth:oura": JSON.stringify({ accessToken: "tok" }),
-        "user:active-user:data": JSON.stringify({}),
-        "user:orphaned:data": JSON.stringify({ recovery: {} }),
-        "user:orphaned:phone": "encrypted-phone",
+        "user:me:data": JSON.stringify({ completions: { a: true } }),
+        "user:me:push-subs": "[]",
+        "user:me:phone": "encrypted-phone",
       });
 
       const res = await POST(makePostRequest({ dryRun: false }, `Bearer ${CRON_SECRET}`));
       const data = await res.json();
 
       expect(data.dryRun).toBe(false);
-      expect(data.orphanedCount).toBe(2); // data + phone
+      expect(data.orphanedCount).toBe(0);
+      expect(data.skippedLiveUsers).toEqual(["me"]);
 
-      // Orphaned keys should be gone
       const redis = getMockRedis();
-      expect(await redis.get("user:orphaned:data")).toBeNull();
-      expect(await redis.get("user:orphaned:phone")).toBeNull();
-
-      // Active user should be untouched
-      expect(await redis.get("user:active-user:data")).not.toBeNull();
+      expect(await redis.get("user:me:data")).not.toBeNull();
+      expect(await redis.get("user:me:push-subs")).not.toBeNull();
+      expect(await redis.get("user:me:phone")).not.toBeNull();
     });
 
     it("deletes legacy keys when dryRun=false", async () => {
