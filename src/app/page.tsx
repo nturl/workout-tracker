@@ -37,6 +37,7 @@ export default function Home() {
   const queryClient = useQueryClient();
   const [storeAccount, setStoreAccount] = useState<string | null | undefined>(undefined);
   const accountId = user?.id ?? null;
+  const userId = user?.id;
   useEffect(() => {
     if (!clerkLoaded) return;
     if (storeAccount === accountId) return;
@@ -65,18 +66,20 @@ export default function Home() {
 
   // Init
   useEffect(() => {
-    if (clerkLoaded && user) {
+    if (clerkLoaded && userId) {
       setMounted(true);
       fetch(`/api/recovery?date=${todayKey()}`)
         .then((r) => r.json())
         .then((result) => {
           if (result.data?.eightSleep?.autoImported) {
             const today = todayKey();
+            // Read the store now, not the closure from when the fetch started.
+            const current = useWorkoutStore.getState().recoveryData[today];
             mergeRecoveryData({
               [today]: {
-                ...recoveryData[today],
+                ...current,
                 date: today,
-                eightSleep: { ...(recoveryData[today]?.eightSleep || {}), ...result.data.eightSleep },
+                eightSleep: { ...(current?.eightSleep || {}), ...result.data.eightSleep },
               },
             });
           }
@@ -84,7 +87,7 @@ export default function Home() {
         .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clerkLoaded, user]);
+  }, [clerkLoaded, userId]);
 
   // Auto-sync Oura.
   // BUG-26: /api/oura/status is behind auth.protect(), which rewrites an

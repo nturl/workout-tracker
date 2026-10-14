@@ -54,6 +54,8 @@ async function pushSyncData(payload: SyncData): Promise<SyncPushResponse> {
   return res.json();
 }
 
+const STALE_TIME_MS = 300_000;
+
 /** "delayed" is a transient failure (429/5xx/offline) the hook retries on
  *  its own; "error" is a permanent one that needs a reload or a re-auth. */
 export type SyncStatus = "idle" | "syncing" | "error" | "delayed";
@@ -72,16 +74,19 @@ export function useSync(enabled: boolean) {
   const debouncedPushRef = useRef<(() => void) | null>(null);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  const dataUpdatedAtRef = useRef(0);
 
   // Initial fetch - 5 min staleness, no window-focus refetch (V14 bandwidth diet)
-  const { data: serverData, isSuccess: fetched, refetch: refetchSync } = useQuery({
+  const { data: serverData, isSuccess: fetched, refetch: refetchSync, dataUpdatedAt } = useQuery({
     queryKey: ["sync-data"],
     queryFn: fetchSyncData,
     enabled,
-    staleTime: 300_000,
+    staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
+
+  dataUpdatedAtRef.current = dataUpdatedAt;
 
   // BUG-30: the bandwidth-diet settings above intentionally skip a refetch on
   // window focus/mount, so a tab left open across midnight otherwise never
@@ -226,6 +231,7 @@ export function useSync(enabled: boolean) {
     // V19: dropped from 3000ms to 500ms so gym taps survive an early app
     // suspend on iOS. Short enough that a burst of rapid toggles still coalesces.
     debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
       // BUG-01: send only what this device actually changed. Sending the whole
       // store made every push a blind overwrite of keys it had merely read.
       pushSync(getSyncDelta());
@@ -282,6 +288,33 @@ export function useSync(enabled: boolean) {
     return () => window.removeEventListener("online", handleOnline);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // SYNC-1: the 500ms debounce is lost if iOS suspends or the user closes the
+  // app inside it, so push right away when the page is hidden or unloaded, and
+  // never let the timer outlive the hook. F9/PERF-1: refetchOnWindowFocus is
+  // off, so refetch on foregrounding once the data is past its stale time.
+  useEffect(() => {
+    const flush = () => {
+      if (!debounceRef.current) return;
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+      pushSync(getSyncDelta());
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        flush();
+      } else if (enabledRef.current && hydrated.current && Date.now() - dataUpdatedAtRef.current > STALE_TIME_MS) {
+        refetchSync();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pagehide", flush);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [pushSync, getSyncDelta, refetchSync]);
 
   const syncNow = () => {
     debouncedPush();
