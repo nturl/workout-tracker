@@ -70,7 +70,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // API GET: network first, cache fallback (stale-while-revalidate)
-  if (url.pathname.startsWith("/api/")) {
+  if (url.pathname.startsWith("/api/") && event.request.method === "GET") {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
