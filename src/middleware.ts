@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { denyIfNotAllowed } from "@/lib/allowlist";
 
 // Routes below handle auth internally via auth() + a JSON 401, instead of
 // relying on clerkMiddleware's auth.protect(). This matters for any
@@ -28,7 +29,16 @@ export const isPublicRoute = createRouteMatcher([
   "/manifest.json",
 ]);
 
+// Sign-in and sign-up stay reachable so a blocked user can still see Clerk's
+// pages (and sign out); everything else is allowlist-only once signed in.
+const isAuthPage = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
+
 export default clerkMiddleware(async (auth, req) => {
+  if (!isAuthPage(req)) {
+    const { userId } = await auth();
+    const denied = denyIfNotAllowed(userId, req);
+    if (denied) return denied;
+  }
   if (!isPublicRoute(req)) {
     await auth.protect();
   }
