@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, memo, useMemo, useCallback } from "react";
+import { useState, useRef, memo, useMemo, useCallback } from "react";
 import {
   categoryColors,
   parseTimedExercises,
@@ -146,20 +146,32 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
     }
   };
 
-  // Circuit-timer progression: mark the exercise slug complete as the timer
-  // advances past it. Auto-completes the session on final row.
-  const handleTimerExerciseComplete = useCallback((slug: string) => {
-    if (!onSaveLog) return;
-    const prevLog = logs[logKey] || {};
-    const prevExerciseLogs = prevLog.exerciseLogs || {};
-    if (prevExerciseLogs[slug]?.completed) return;
-    const nextExerciseLogs = {
-      ...prevExerciseLogs,
-      [slug]: { ...prevExerciseLogs[slug], completed: true, completedAt: new Date().toISOString() },
-    };
-    onSaveLog(logKey, { ...prevLog, exerciseLogs: nextExerciseLogs });
+  // BUG-35: after a hidden page the timer reports several exercises in one
+  // call, before the parent has re-rendered with the earlier saves. Chain
+  // them off the last entry we wrote while `logs` is still the same object.
+  const timerLogRef = useRef<{ source: WorkoutLogRecord; entry: WorkoutLogEntry } | null>(null);
 
-    if (!timerChecklistMode) return;
+  // Circuit-timer progression: mark the exercise slug complete as the timer
+  // advances past it. BUG-31: auto-completes the session only when the timer
+  // reports the final round finished (circuitDone), not when round 1 has
+  // touched every row.
+  const handleTimerExerciseComplete = useCallback((slug: string, circuitDone: boolean) => {
+    if (!onSaveLog) return;
+    const chained = timerLogRef.current?.source === logs ? timerLogRef.current.entry : undefined;
+    const prevLog = chained || logs[logKey] || {};
+    const prevExerciseLogs = prevLog.exerciseLogs || {};
+    let nextExerciseLogs = prevExerciseLogs;
+    if (!prevExerciseLogs[slug]?.completed) {
+      nextExerciseLogs = {
+        ...prevExerciseLogs,
+        [slug]: { ...prevExerciseLogs[slug], completed: true, completedAt: new Date().toISOString() },
+      };
+      const entry = { ...prevLog, exerciseLogs: nextExerciseLogs };
+      timerLogRef.current = { source: logs, entry };
+      onSaveLog(logKey, entry);
+    }
+
+    if (!timerChecklistMode || !circuitDone) return;
     const allDone = exerciseSlugs.every((s) => nextExerciseLogs[s]?.completed);
     if (allDone && !completed) {
       setShowConfetti(true);
@@ -338,9 +350,9 @@ export const SessionCard = memo(function SessionCard({ session, level, completed
           {showTimer && parsedTimed.length > 0 && (
             <CircuitTimer
               exercises={parsedTimed.map((p) => p.circuit)}
-              onExerciseComplete={timerChecklistMode ? (i) => {
+              onExerciseComplete={timerChecklistMode ? (i, circuitDone) => {
                 const slug = exerciseSlugs[parsedTimed[i].originalIndex];
-                if (slug) handleTimerExerciseComplete(slug);
+                if (slug) handleTimerExerciseComplete(slug, circuitDone);
               } : undefined}
               active={expanded}
             />

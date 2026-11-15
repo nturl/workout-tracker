@@ -87,6 +87,16 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
 
   const clockRef = useRef<ClockController | null>(null);
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
+  // BUG-35: seconds already elapsed in the phase the clock is about to start,
+  // carried over from the phase that just ended (see startCountdownClock).
+  const carryRef = useRef(0);
+
+  // BUG-33: don't hold the screen awake while nothing is running. start()
+  // takes a fresh lock on resume/restart.
+  const dropWakeLock = useCallback(() => {
+    releaseWakeLock(wakeLockRef.current).catch(() => {});
+    wakeLockRef.current = null;
+  }, []);
 
   const totalReps = protocol.targetReps;
   const phaseDuration = phase === "up" ? protocol.upSeconds : protocol.downSeconds;
@@ -135,8 +145,11 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
   // external side effect (no React state involved), so a normal effect is
   // fine here.
   useEffect(() => {
-    if (!active) releaseActiveTimer(timerTokenRef.current);
-  }, [active]);
+    if (!active) {
+      releaseActiveTimer(timerTokenRef.current);
+      dropWakeLock();
+    }
+  }, [active, dropWakeLock]);
 
   // Re-acquire wake lock when page becomes visible again. BUG-16 fix:
   // requestWakeLock now wires a 'release' listener that nulls wakeLockRef.current
@@ -162,6 +175,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
         clockRef.current.stop();
         clockRef.current = null;
       }
+      carryRef.current = 0;
       return;
     }
 
@@ -171,19 +185,29 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
     // effect doesn't re-run every second.
     const phaseDurationSec = phaseSecondsLeftRef.current;
     let firstTick = true;
+    const carry = carryRef.current;
+    carryRef.current = 0;
+    // BUG-35: credit TUT by the whole seconds actually elapsed in this phase
+    // (capped at its length), not +1 per tick, so a hidden page doesn't lose it.
+    let credited = 0;
 
     clockRef.current = startCountdownClock({
       durationSeconds: phaseDurationSec,
-      onTick: ({ secondsLeft }) => {
-        // Skip the initial emission: it fires at mount with the full phase
-        // duration and no wall time has elapsed yet.
+      initialElapsedSeconds: carry,
+      onTick: ({ secondsLeft, elapsedSeconds }) => {
+        const elapsedWhole = Math.min(Math.floor(elapsedSeconds), phaseDurationSec);
+        if (elapsedWhole > credited) {
+          tutSecondsRef.current += elapsedWhole - credited;
+          credited = elapsedWhole;
+          setTutSeconds(tutSecondsRef.current);
+        }
+        // The initial emission fires at mount with the full phase duration
+        // (or the carried-over remainder) - nothing to count down yet.
         if (firstTick) {
           firstTick = false;
           setPhaseSecondsLeft(secondsLeft);
           return;
         }
-        tutSecondsRef.current += 1;
-        setTutSeconds(tutSecondsRef.current);
         // Skip the 0 display update; onComplete jumps straight to the next phase.
         if (secondsLeft > 0) {
           setPhaseSecondsLeft(secondsLeft);
@@ -192,29 +216,49 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
           }
         }
       },
-      onComplete: () => {
-        // Phase boundary
-        if (phase === "up") {
-          triggerRepBeep();
-          setPhase("down");
-          setPhaseSecondsLeft(protocol.downSeconds);
-          return;
+      onComplete: (overflow) => {
+        // BUG-35: walk as many phases as the overflow covers (the page may
+        // have been hidden for several), cueing only the phase the user lands in.
+        let nextPhase: "up" | "down" = phase === "up" ? "down" : "up";
+        let rep = currentRep;
+        let left = overflow;
+        let finished = false;
+        if (phase === "down") {
+          rep += 1;
+          finished = rep >= totalReps;
         }
-        // phase === "down": rep complete
-        const completedRep = currentRep + 1;
-        if (completedRep >= totalReps) {
+        while (!finished) {
+          const seconds = nextPhase === "up" ? protocol.upSeconds : protocol.downSeconds;
+          if (seconds <= 0 || left < seconds) break;
+          left -= seconds;
+          tutSecondsRef.current += seconds;
+          if (nextPhase === "down") {
+            rep += 1;
+            finished = rep >= totalReps;
+          }
+          nextPhase = nextPhase === "up" ? "down" : "up";
+        }
+        setTutSeconds(tutSecondsRef.current);
+        if (finished) {
           triggerSetCompleteBeep();
-          setCurrentRep(completedRep);
+          setCurrentRep(rep);
           setPhase("done");
           setRunning(false);
           releaseActiveTimer(timerTokenRef.current);
-          onCompleteRef.current?.({ reps: completedRep, tutSeconds: tutSecondsRef.current + 1 });
+          dropWakeLock();
+          onCompleteRef.current?.({ reps: rep, tutSeconds: tutSecondsRef.current + 1 });
           return;
         }
         triggerRepBeep();
-        setCurrentRep(completedRep);
-        setPhase("up");
-        setPhaseSecondsLeft(protocol.upSeconds);
+        // Whole seconds already spent in the landing phase are credited and
+        // come off its display now; the fraction rides into the next clock.
+        const spent = Math.floor(left);
+        tutSecondsRef.current += spent;
+        setTutSeconds(tutSecondsRef.current);
+        carryRef.current = left - spent;
+        setCurrentRep(rep);
+        setPhase(nextPhase);
+        setPhaseSecondsLeft((nextPhase === "up" ? protocol.upSeconds : protocol.downSeconds) - spent);
       },
     });
 
@@ -224,7 +268,7 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
         clockRef.current = null;
       }
     };
-  }, [running, phase, currentRep, totalReps, protocol.upSeconds, protocol.downSeconds, triggerRepBeep, triggerSetCompleteBeep, timerSettings.audio, timerSettings.countdownTicks]);
+  }, [running, phase, currentRep, totalReps, protocol.upSeconds, protocol.downSeconds, triggerRepBeep, triggerSetCompleteBeep, timerSettings.audio, timerSettings.countdownTicks, dropWakeLock]);
 
   const beginTimer = useCallback(() => {
     setShowCountdown(false);
@@ -242,7 +286,8 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
   const forceStop = useCallback(() => {
     setRunning(false);
     setShowCountdown(false);
-  }, []);
+    dropWakeLock();
+  }, [dropWakeLock]);
 
   const start = useCallback(async () => {
     if (timerSettings.audio) unlockAudio();
@@ -267,7 +312,8 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
   const pause = useCallback(() => {
     setRunning(false);
     releaseActiveTimer(timerTokenRef.current);
-  }, []);
+    dropWakeLock();
+  }, [dropWakeLock]);
 
   const reset = useCallback(async () => {
     setRunning(false);
@@ -287,8 +333,9 @@ export function RepTimer({ protocol = DEFAULT_PROTOCOL, exerciseName, onComplete
     setRunning(false);
     setPhase("done");
     releaseActiveTimer(timerTokenRef.current);
+    dropWakeLock();
     onCompleteRef.current?.({ reps: currentRep, tutSeconds });
-  }, [triggerSetCompleteBeep, currentRep, tutSeconds]);
+  }, [triggerSetCompleteBeep, currentRep, tutSeconds, dropWakeLock]);
 
   const phasePct = phase === "up" || phase === "down"
     ? ((phaseDuration - phaseSecondsLeft) / phaseDuration) * 100

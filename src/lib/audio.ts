@@ -93,8 +93,15 @@ interface ClockOptions {
   durationSeconds: number;
   /** Fires once per integer-second boundary (including the initial tick at mount). */
   onTick?: (tick: ClockTick) => void;
-  /** Fires when secondsLeft hits 0. */
-  onComplete?: () => void;
+  /**
+   * Fires when secondsLeft hits 0. `overflowSeconds` is how far past zero the
+   * clock already is: ~0 normally, but large when rAF was suspended (hidden
+   * page, locked phone). BUG-35: callers start the next phase with that much
+   * already elapsed (initialElapsedSeconds) so real time is not dropped.
+   */
+  onComplete?: (overflowSeconds: number) => void;
+  /** Seconds of the duration already consumed when the clock starts (BUG-35 carry-over). */
+  initialElapsedSeconds?: number;
   /** Optional: fires on every animation frame for smooth visual updates. */
   onFrame?: (tick: ClockTick) => void;
 }
@@ -111,7 +118,7 @@ function nowSeconds(): number {
 export function startCountdownClock(opts: ClockOptions): ClockController {
   const { durationSeconds } = opts;
   let baselineNow = nowSeconds();
-  let elapsedBeforePause = 0;
+  let elapsedBeforePause = opts.initialElapsedSeconds ?? 0;
   let running = true;
   let stopped = false;
   let lastEmittedSecondsLeft = durationSeconds + 1; // force initial emit
@@ -143,12 +150,36 @@ export function startCountdownClock(opts: ClockOptions): ClockController {
 
     if (secondsLeft <= 0) {
       stopped = true;
-      opts.onComplete?.();
+      unbindVisibility();
+      opts.onComplete?.(Math.max(0, elapsedSeconds - durationSeconds));
       return;
     }
 
     scheduleFrame();
   };
+
+  const cancelFrame = () => {
+    if (rafHandle === null) return;
+    if (typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(rafHandle);
+    } else {
+      clearTimeout(rafHandle);
+    }
+    rafHandle = null;
+  };
+
+  // BUG-35: rAF stops while the page is hidden, so on return evaluate the
+  // clock right away instead of waiting for the next frame. A paused or
+  // stopped clock is left alone.
+  const onVisible = () => {
+    if (document.visibilityState !== "visible" || stopped || !running) return;
+    cancelFrame();
+    frame();
+  };
+  const unbindVisibility = () => {
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisible);
+  };
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
 
   scheduleFrame();
 
@@ -166,13 +197,8 @@ export function startCountdownClock(opts: ClockOptions): ClockController {
     },
     stop: () => {
       stopped = true;
-      if (rafHandle !== null) {
-        if (typeof cancelAnimationFrame === "function") {
-          cancelAnimationFrame(rafHandle);
-        } else {
-          clearTimeout(rafHandle);
-        }
-      }
+      unbindVisibility();
+      cancelFrame();
     },
     isRunning: () => running && !stopped,
   };

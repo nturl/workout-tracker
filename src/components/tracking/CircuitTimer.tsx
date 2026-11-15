@@ -71,13 +71,61 @@ function segmentTotalSeconds(ex: CircuitExercise): number {
   return (ex.rounds ?? 1) * (ex.workSeconds + ex.restSeconds);
 }
 
+// BUG-35: the circuit's phase state machine as plain data, so returning to a
+// hidden page can walk several phases in one go (the clock reports how far
+// past the phase end it already is) instead of dropping that time.
+interface CircuitPos {
+  round: number;
+  ex: number;
+  inner: number;
+  phase: "work" | "rest";
+}
+
+function startPhase(ex: CircuitExercise): "work" | "rest" {
+  return ex.restOnly ? "rest" : "work";
+}
+
+function phaseSeconds(ex: CircuitExercise, phase: "work" | "rest"): number {
+  return phase === "work" ? ex.workSeconds : ex.restSeconds || ex.workSeconds;
+}
+
+// Where the circuit goes when the phase at `pos` ends. next === null means the
+// circuit is finished. exerciseDone: this phase ended the exercise (its last
+// inner round), which is what onExerciseComplete reports.
+function nextPos(exercises: CircuitExercise[], rounds: number, pos: CircuitPos): { next: CircuitPos | null; exerciseDone: boolean } {
+  const ex = exercises[pos.ex];
+  const exerciseRounds = ex.rounds ?? 1;
+  const nextExercise = () => {
+    if (pos.ex + 1 < exercises.length) {
+      return { next: { round: pos.round, ex: pos.ex + 1, inner: 1, phase: startPhase(exercises[pos.ex + 1]) }, exerciseDone: true };
+    }
+    if (pos.round < rounds) {
+      return { next: { round: pos.round + 1, ex: 0, inner: 1, phase: startPhase(exercises[0]) }, exerciseDone: true };
+    }
+    return { next: null, exerciseDone: true };
+  };
+  if (pos.phase === "work") {
+    // BUG-34: no trailing rest after the very last work phase of the circuit.
+    const lastWork = pos.ex === exercises.length - 1 && pos.round >= rounds && pos.inner >= exerciseRounds;
+    if (ex.restSeconds > 0 && !lastWork) return { next: { ...pos, phase: "rest" }, exerciseDone: false };
+    if (pos.inner < exerciseRounds) return { next: { ...pos, inner: pos.inner + 1, phase: "work" }, exerciseDone: false };
+    return nextExercise();
+  }
+  // restOnly exercises have no work phase; they're a single rest block, so
+  // advance once the rest phase completes.
+  if (pos.inner < exerciseRounds && !ex.restOnly) return { next: { ...pos, inner: pos.inner + 1, phase: "work" }, exerciseDone: false };
+  return nextExercise();
+}
+
 interface CircuitTimerProps {
   exercises: CircuitExercise[];
   rounds?: number;
   // Fired when an exercise finishes its last inner round. Index matches the
   // position in the `exercises` array. Used by SessionCard to auto-check off
   // functional-fitness exercises as the timer advances past them.
-  onExerciseComplete?: (index: number) => void;
+  // BUG-31: circuitDone is true only for the last exercise of the final round,
+  // so a multi-round run is not reported complete after round 1.
+  onExerciseComplete?: (index: number, circuitDone: boolean) => void;
   // BUG-07: false while the owning SessionCard is collapsed. Collapsing a
   // card should pause its timer instead of letting it keep ticking, hidden,
   // underneath.
@@ -107,6 +155,15 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
   const [showCountdown, setShowCountdown] = useState(false);
   const clockRef = useRef<ClockController | null>(null);
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
+  // BUG-35: seconds already elapsed in the phase the clock is about to start,
+  // carried over from the phase that just ended (see startCountdownClock).
+  const carryRef = useRef(0);
+
+  // BUG-33: don't hold the screen awake while nothing is running.
+  const dropWakeLock = useCallback(() => {
+    releaseWakeLock(wakeLockRef.current).catch(() => {});
+    wakeLockRef.current = null;
+  }, []);
 
   // BUG-07: stable per-instance identity for the module-level active-timer
   // registry (src/lib/audio.ts) - see RepTimer.tsx for the mirrored logic.
@@ -182,8 +239,11 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
   // external side effect (no React state involved), so a normal effect is
   // fine here.
   useEffect(() => {
-    if (!active) releaseActiveTimer(timerTokenRef.current);
-  }, [active]);
+    if (!active) {
+      releaseActiveTimer(timerTokenRef.current);
+      dropWakeLock();
+    }
+  }, [active, dropWakeLock]);
 
   // Re-acquire wake lock when the page becomes visible again. BUG-16's fix
   // (requestWakeLock wiring a 'release' listener that nulls wakeLockRef.current
@@ -229,6 +289,7 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
         clockRef.current.stop();
         clockRef.current = null;
       }
+      carryRef.current = 0;
       return;
     }
 
@@ -239,56 +300,13 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
     const phaseDurationSec = timeLeftRef.current || (phase === "work" ? ex.workSeconds : ex.restSeconds);
     const isBi = ex?.bilateral ?? false;
     const halfway = Math.ceil(ex.workSeconds / 2);
-    const exerciseRounds = ex.rounds ?? 1;
     let firstTick = true;
-
-    // Advance to the next exercise, marking the completed one via callback so
-    // SessionCard can auto-check off functional-fitness rows.
-    const advanceToNextExercise = () => {
-      onExerciseCompleteRef.current?.(currentEx);
-      const nextEx = currentEx + 1;
-      if (nextEx >= totalExercises) {
-        const nextRound = currentRound + 1;
-        if (nextRound > rounds) {
-          setPhase("done");
-          setRunning(false);
-          releaseActiveTimer(timerTokenRef.current);
-          releaseWakeLock(wakeLockRef.current).catch(() => {});
-          wakeLockRef.current = null;
-          beepDone();
-          return;
-        }
-        setCurrentRound(nextRound);
-        setCurrentEx(0);
-        setInnerRound(1);
-        const first = exercises[0];
-        if (first.restOnly) {
-          setPhase("rest");
-          setTimeLeft(first.restSeconds || first.workSeconds);
-          beepRest();
-        } else {
-          setPhase("work");
-          setTimeLeft(first.workSeconds);
-          beepWork();
-        }
-        return;
-      }
-      setCurrentEx(nextEx);
-      setInnerRound(1);
-      const next = exercises[nextEx];
-      if (next.restOnly) {
-        setPhase("rest");
-        setTimeLeft(next.restSeconds || next.workSeconds);
-        beepRest();
-      } else {
-        setPhase("work");
-        setTimeLeft(next.workSeconds);
-        beepWork();
-      }
-    };
+    const carry = carryRef.current;
+    carryRef.current = 0;
 
     clockRef.current = startCountdownClock({
       durationSeconds: phaseDurationSec,
+      initialElapsedSeconds: carry,
       onTick: ({ secondsLeft }) => {
         if (firstTick) {
           firstTick = false;
@@ -307,41 +325,51 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
           beepCountdown();
         }
       },
-      onComplete: () => {
-        if (phase === "work") {
-          const restTime = ex.restSeconds;
-          if (restTime > 0) {
-            setPhase("rest");
-            setTimeLeft(restTime);
-            beepRest();
-            return;
+      onComplete: (overflow) => {
+        // BUG-35: walk as many phases as the overflow covers (the page may
+        // have been hidden for several), reporting each finished exercise once
+        // but cueing only the phase the user lands in.
+        let pos: CircuitPos = { round: currentRound, ex: currentEx, inner: innerRound, phase: phase as "work" | "rest" };
+        let left = overflow;
+        const finished: number[] = [];
+        let done = false;
+        for (;;) {
+          const step = nextPos(exercises, rounds, pos);
+          if (step.exerciseDone) finished.push(pos.ex);
+          if (!step.next) {
+            done = true;
+            break;
           }
-          // No rest configured: either advance inner round or next exercise.
-          if (innerRound < exerciseRounds) {
-            setInnerRound(innerRound + 1);
-            setPhase("work");
-            setTimeLeft(ex.workSeconds);
-            beepWork();
-            return;
+          pos = step.next;
+          const seconds = phaseSeconds(exercises[pos.ex], pos.phase);
+          if (seconds > 0 && left >= seconds) {
+            left -= seconds;
+            continue;
           }
-          advanceToNextExercise();
+          break;
+        }
+        finished.forEach((index, n) => {
+          onExerciseCompleteRef.current?.(index, done && n === finished.length - 1);
+        });
+        if (done) {
+          setPhase("done");
+          setRunning(false);
+          releaseActiveTimer(timerTokenRef.current);
+          dropWakeLock();
+          beepDone();
           return;
         }
-        // phase === "rest"
-        if (innerRound < exerciseRounds) {
-          setInnerRound(innerRound + 1);
-          // restOnly exercises have no work phase; they're a single rest block,
-          // so advance once the rest phase completes.
-          if (ex.restOnly) {
-            advanceToNextExercise();
-            return;
-          }
-          setPhase("work");
-          setTimeLeft(ex.workSeconds);
-          beepWork();
-          return;
-        }
-        advanceToNextExercise();
+        // Whole seconds already spent in the landing phase come off its
+        // display; the fraction rides into the next clock.
+        const spent = Math.floor(left);
+        carryRef.current = left - spent;
+        setCurrentRound(pos.round);
+        setCurrentEx(pos.ex);
+        setInnerRound(pos.inner);
+        setPhase(pos.phase);
+        setTimeLeft(phaseSeconds(exercises[pos.ex], pos.phase) - spent);
+        if (pos.phase === "work") beepWork();
+        else beepRest();
       },
     });
 
@@ -359,7 +387,8 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
   const forceStop = useCallback(() => {
     setRunning(false);
     setShowCountdown(false);
-  }, []);
+    dropWakeLock();
+  }, [dropWakeLock]);
 
   const togglePause = async () => {
     // Always unlock audio on gesture. iOS backgrounding can resuspend the
@@ -379,7 +408,15 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
     } else if (running) {
       setRunning(false);
       releaseActiveTimer(timerTokenRef.current);
+      dropWakeLock();
     } else {
+      // BUG-32: the OS may have revoked the lock while paused/backgrounded;
+      // mirror RepTimer.start() and take a fresh one on resume.
+      if (timerSettings.wakeLock && !wakeLockRef.current) {
+        wakeLockRef.current = await requestWakeLock(() => {
+          wakeLockRef.current = null;
+        });
+      }
       claimActiveTimer(timerTokenRef.current, forceStop);
       setRunning(true);
     }
@@ -406,8 +443,8 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
 
   const skip = () => {
     if (phase !== "work" && phase !== "rest") return;
-    onExerciseCompleteRef.current?.(currentEx);
     const nextEx = currentEx + 1;
+    onExerciseCompleteRef.current?.(currentEx, nextEx >= totalExercises && currentRound >= rounds);
     if (nextEx >= totalExercises) {
       const nextRound = currentRound + 1;
       if (nextRound > rounds) {
@@ -489,7 +526,10 @@ export function CircuitTimer({ exercises, rounds: defaultRounds = 1, onExerciseC
     return Math.min(Math.max((elapsed / total) * 100, 0), 100);
   })();
 
-  const totalSeconds = exercises.reduce((sum, e) => sum + segmentTotalSeconds(e), 0) * rounds;
+  // BUG-34: the final work phase of the final round has no trailing rest.
+  const lastBlock = exercises[exercises.length - 1];
+  const trailingRest = lastBlock && !lastBlock.restOnly && lastBlock.restSeconds > 0 ? lastBlock.restSeconds : 0;
+  const totalSeconds = exercises.reduce((sum, e) => sum + segmentTotalSeconds(e), 0) * rounds - trailingRest;
 
   // Interval protocols (explicit recovery rows or multi-round blocks: mito,
   // VO2 4x4, Tabata) are fixed structures - repeating the whole sequence makes
