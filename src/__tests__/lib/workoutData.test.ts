@@ -364,14 +364,14 @@ describe("workoutData - schedule shift effective 2026-11-15", () => {
     expect(lift("Thursday").levels.beginner.instructions).toContain("Same exercises as Sunday");
   });
 
-  it("Sunday-Thursday train 7:45-8:30 AM ET; Friday and Saturday have no set time", () => {
+  it("Sunday trains 5:00-5:45 PM ET, Monday-Thursday 7:45-8:30 AM ET; Friday and Saturday have no set time", () => {
     for (const day of ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"]) {
       const plan = weeklyPlan.find((d) => d.day === day)!;
-      expect(plan.time, day).toBe("7:45-8:30 AM ET");
+      expect(plan.time, day).toBe(day === "Sunday" ? "5:00-5:45 PM ET" : "7:45-8:30 AM ET");
       for (const s of plan.sessions) expect(s.timeOfDay, `${day} / ${s.title}`).not.toMatch(/afternoon|evening|^Any time$/i);
     }
     const mainTime = (day: string, title: string) => weeklyPlan.find((d) => d.day === day)!.sessions.find((s) => s.title === title)!.timeOfDay;
-    expect(mainTime("Sunday", "Super-Slow Strength")).toBe("7:45-8:30 AM");
+    expect(mainTime("Sunday", "Super-Slow Strength")).toBe("5:00-5:45 PM");
     expect(mainTime("Monday", "Functional Fitness")).toBe("7:45-8:30 AM");
     expect(mainTime("Tuesday", "Morning Detox Session")).toBe("7:45-8:30 AM (or Wednesday if unavailable)");
     expect(mainTime("Wednesday", "Tabata")).toBe("7:45-8:30 AM");
@@ -380,7 +380,7 @@ describe("workoutData - schedule shift effective 2026-11-15", () => {
     for (const day of ["Friday", "Saturday"]) {
       const plan = weeklyPlan.find((d) => d.day === day)!;
       expect(plan.time).toBe("No set time");
-      for (const s of plan.sessions) expect(s.timeOfDay).not.toContain("7:45");
+      for (const s of plan.sessions) expect(s.timeOfDay).not.toMatch(/7:45|5:00/);
     }
   });
 

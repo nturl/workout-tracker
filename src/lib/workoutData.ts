@@ -1081,7 +1081,8 @@ export const legacyWeeklyPlan: DayPlan[] = [
 // ── Schedule shift, effective Sunday 2026-11-15 ──────────────────
 // Every training day moved one day earlier (lift Sunday/Thursday, conditioning
 // Monday, recovery Tuesday, sauna + Tabata Wednesday, adventure Friday, social
-// sport Saturday) and Sunday-Thursday train 7:45-8:30 AM America/New_York.
+// sport Saturday). Monday-Thursday train 7:45-8:30 AM and Sunday 5:00-5:45 PM,
+// America/New_York.
 // Weeks start on Sunday, so the change lands exactly on a week boundary: a
 // week key before this one uses legacyWeeklyPlan, this one and later use
 // weeklyPlan. Session content is carried over untouched; only the day a
@@ -1090,7 +1091,14 @@ export const SCHEDULE_SHIFT_WEEK = "2026-11-15";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MORNING_BLOCK = "7:45-8:30 AM";
-const MORNING_BLOCK_DAYS = new Set(["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"]);
+// Days with a set training block. Friday and Saturday have none.
+const TRAINING_BLOCKS: Record<string, string> = {
+  Sunday: "5:00-5:45 PM",
+  Monday: MORNING_BLOCK,
+  Tuesday: MORNING_BLOCK,
+  Wednesday: MORNING_BLOCK,
+  Thursday: MORNING_BLOCK,
+};
 
 /** Rewrites every weekday name in `text` to the day before it ("Monday's lifts" -> "Sunday's lifts"). */
 export function shiftDayNames(text: string): string {
@@ -1115,19 +1123,19 @@ function shiftStrings<T>(value: T): T {
 // (Monday-first) with each day moved back one.
 export const weeklyPlan: DayPlan[] = legacyWeeklyPlan.map((legacyDay) => {
   const day = shiftStrings(legacyDay);
-  const timed = MORNING_BLOCK_DAYS.has(day.day);
+  const block = TRAINING_BLOCKS[day.day];
   return {
     ...day,
-    time: timed ? `${MORNING_BLOCK} ET` : "No set time",
-    // On morning-block days, replace the old evening / unscheduled slot with
+    time: block ? `${block} ET` : "No set time",
+    // On days with a block, replace the old evening / unscheduled slot with
     // the block. Notes that are not a time of day (bi-weekly cadence, "bookend
     // the circuit", the daily posture work) stay as written.
     sessions: day.sessions.map((s) =>
-      timed && /^(Late afternoon \/ early evening|Any time$)/.test(s.timeOfDay)
+      block && /^(Late afternoon \/ early evening|Any time$)/.test(s.timeOfDay)
         ? {
             ...s,
             timeOfDay: s.timeOfDay
-              .replace(/^(Late afternoon \/ early evening|Any time$)/, MORNING_BLOCK)
+              .replace(/^(Late afternoon \/ early evening|Any time$)/, block)
               .replace(" (3+ hrs before bed)", ""),
           }
         : s
