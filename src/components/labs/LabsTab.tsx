@@ -261,7 +261,7 @@ function EmptyState({ onImport }: { onImport: () => void }) {
 function ImportView({ onComplete }: { onComplete: () => void }) {
   const extract = useExtractLabs();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState("");
   const [source, setSource] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
 
@@ -278,7 +278,7 @@ function ImportView({ onComplete }: { onComplete: () => void }) {
   const handleExtract = useCallback(() => {
     if (!preview) return;
     extract.mutate(
-      { imageDataUrl: preview, date, source: source || undefined },
+      { imageDataUrl: preview, date: date || undefined, source: source || undefined },
       { onSuccess: () => onComplete() },
     );
   }, [preview, date, source, extract, onComplete]);
@@ -325,6 +325,7 @@ function ImportView({ onComplete }: { onComplete: () => void }) {
             onChange={(e) => setDate(e.target.value)}
             className="input-field w-full h-11 rounded-button px-3 text-sm bg-surface-input text-content-primary border border-active"
           />
+          <p className="text-[11px] mt-1 text-content-muted">Leave blank to use the date on the report</p>
         </div>
         <div>
           <label className="text-xs font-medium block mb-1 text-content-muted">Lab (optional)</label>

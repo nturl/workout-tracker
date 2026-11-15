@@ -5,6 +5,7 @@ import { getRedis } from "@/lib/redis";
 import { rateLimit, rateLimitResponse, checkCsrf, csrfResponse } from "@/lib/rateLimit";
 import { getAllReadings } from "@/lib/biomarkerStore";
 import { getBiomarkerById, CATEGORY_LABELS } from "@/lib/biomarkerData";
+import { weekKey, getWeekProgress } from "@/lib/helpers";
 import { z } from "zod";
 
 export const maxDuration = 60;
@@ -37,19 +38,55 @@ const chatSchema = z.object({
   goalContext: goalContextSchema,
 });
 
+const TZ = "America/New_York";
+
+// Today's date and weekday in the user's timezone (the server runs in UTC).
+function todayInNewYork(now: Date = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", weekday: "long",
+    }).formatToParts(now).map((p) => [p.type, p.value]),
+  );
+  return {
+    iso: `${parts.year}-${parts.month}-${parts.day}`,
+    weekday: parts.weekday,
+    // Local-time Date carrying the New York calendar day, for weekKey()
+    localDate: new Date(Number(parts.year), Number(parts.month) - 1, Number(parts.day)),
+  };
+}
+
+// Drop base64 screenshots (Recovery tab uploads) before the entry goes in a prompt.
+function stripScreenshots(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripScreenshots);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([k]) => k !== "screenshotDataUrl")
+        .map(([k, v]) => [k, stripScreenshots(v)]),
+    );
+  }
+  return value;
+}
+
 function buildSystemPrompt(userData: Record<string, unknown> | null): string {
   const level = userData?.level || "beginner";
   const completions = userData?.completions || {};
   const recovery = userData?.recovery || {};
 
-  // Count this week's completions
-  const completionEntries = Object.entries(completions as Record<string, boolean>);
-  const completedCount = completionEntries.filter(([, v]) => v).length;
-  const totalSessions = completionEntries.length;
+  const today = todayInNewYork();
 
-  // Get latest recovery data
-  const recoveryEntries = Object.entries(recovery as Record<string, unknown>);
-  const latestRecovery = recoveryEntries.length > 0 ? recoveryEntries[recoveryEntries.length - 1] : null;
+  // This week's completions (completion keys are `${weekKey}:${day}:${slug}`)
+  const thisWeek = weekKey(today.localDate);
+  const { done: completedCount, total: totalSessions } = getWeekProgress(
+    completions as Record<string, boolean>,
+    thisWeek,
+  );
+
+  // Get latest recovery data (keys are dates; insertion order is not date order)
+  const recoveryMap = recovery as Record<string, unknown>;
+  const recoveryDates = Object.keys(recoveryMap).sort();
+  const latestKey = recoveryDates[recoveryDates.length - 1];
+  const latestRecovery = latestKey ? recoveryMap[latestKey] : null;
 
   return `You are a friendly, knowledgeable workout coach for the Workout Tracker app. Your name is Coach.
 
@@ -62,9 +99,10 @@ The user follows a structured 7-day training program:
 - Saturday: Social Sport + Brain Training, no set time
 - Every day starts with Egoscue E-cises (posture). Meditation is tracked as a daily habit, not a session.
 
+Today is ${today.weekday}, ${today.iso} (America/New_York).
 User's current level: ${level}
-Sessions completed this period: ${completedCount}/${totalSessions || "unknown"}
-${latestRecovery ? `Latest recovery data: ${JSON.stringify(latestRecovery[1])}` : "No recovery data logged yet."}
+Sessions completed this week: ${completedCount}/${totalSessions}
+${latestRecovery ? `Latest recovery data (${latestKey}): ${JSON.stringify(stripScreenshots(latestRecovery))}` : "No recovery data logged yet."}
 
 Response style - SMART BREVITY:
 - Lead with the single most important point (a bold headline sentence).

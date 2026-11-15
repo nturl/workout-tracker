@@ -111,10 +111,14 @@ ${flagged.length > 0 ? `FLAGGED MARKERS REQUIRING ATTENTION:\n${flagged.join("\n
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const result = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 6000,
       system: GOALS_PROMPT,
       messages: [{ role: "user", content: healthContext }],
     });
+    if (result.stop_reason === "max_tokens") {
+      return NextResponse.json({ error: "Goals response was cut off. Try refreshing." }, { status: 422 });
+    }
+
     const text = result.content[0].type === "text" ? result.content[0].text : "";
 
     if (!text) {
@@ -126,7 +130,19 @@ ${flagged.length > 0 ? `FLAGGED MARKERS REQUIRING ATTENTION:\n${flagged.join("\n
       return NextResponse.json({ error: "Could not parse goals" }, { status: 422 });
     }
 
-    const goals = JSON.parse(jsonMatch[0]);
+    let goals;
+    try {
+      goals = JSON.parse(jsonMatch[0]);
+    } catch {
+      return NextResponse.json({ error: "Goals response was malformed. Try refreshing." }, { status: 422 });
+    }
+    if (!Array.isArray(goals)) {
+      return NextResponse.json({ error: "Goals response was malformed. Try refreshing." }, { status: 422 });
+    }
+    for (const g of goals) {
+      if (!Array.isArray(g.actions)) g.actions = [];
+      if (!Array.isArray(g.askAiQuestions)) g.askAiQuestions = [];
+    }
 
     // Cache for 24 hours (invalidated on new lab import)
     await redis.set(cacheKey, JSON.stringify(goals), "EX", 86400);

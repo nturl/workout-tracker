@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
         meta,
         latest: history[history.length - 1],
         history,
-        trend: calcTrend(history),
+        trend: calcTrend(history, biomarkerId),
       });
     }
 

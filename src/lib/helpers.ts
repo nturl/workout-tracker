@@ -167,10 +167,12 @@ export function getRecoveryLevel(entry: RecoveryEntry): RecoveryLevel {
   const score = entry.oura?.readinessScore ?? entry.eightSleep?.sleepFitnessScore ?? 0;
   const hrv = entry.oura?.hrv ?? entry.eightSleep?.hrv ?? 0;
 
-  if (score >= 85 || hrv >= 60) {
+  // Use the score when present; HRV only when there is no score.
+  const hasScore = score > 0;
+  if (hasScore ? score >= 85 : hrv >= 60) {
     return { label: "Well Recovered", color: "#22c55e", emoji: "\u{1F7E2}", advice: "You're primed \u2014 go hard today. Push intensity and volume." };
   }
-  if (score >= 70 || hrv >= 40) {
+  if (hasScore ? score >= 70 : hrv >= 40) {
     return { label: "Moderate Recovery", color: "#f59e0b", emoji: "\u{1F7E1}", advice: "Solid baseline. Follow the program as written, listen to your body." };
   }
   if (score > 0 || hrv > 0) {

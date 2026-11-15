@@ -51,6 +51,8 @@ export function useDeleteLab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["labs"] });
       qc.invalidateQueries({ queryKey: ["biomarkers"] });
+      qc.invalidateQueries({ queryKey: ["health-goals"] });
+      qc.invalidateQueries({ queryKey: ["health-insights"] });
     },
   });
 }

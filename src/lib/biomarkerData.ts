@@ -78,6 +78,7 @@ export const BIOMARKERS: BiomarkerMeta[] = [
   { id: "vldl", name: "VLDL Cholesterol", shortName: "VLDL", unit: "mg/dL", category: "lipids", standard: { low: 5, high: 40 }, optimal: { low: 5, high: 20 } },
   { id: "chol_hdl_ratio", name: "Cholesterol/HDL Ratio", unit: "ratio", category: "lipids", standard: { low: 0, high: 5.0 }, optimal: { low: 0, high: 3.5 } },
   { id: "ldl_hdl_ratio", name: "LDL/HDL Ratio", unit: "ratio", category: "lipids", standard: { low: 0, high: 3.5 }, optimal: { low: 0, high: 2.5 } },
+  { id: "apob", name: "Apolipoprotein B", shortName: "ApoB", unit: "mg/dL", category: "lipids", standard: { low: 0, high: 90 }, aliases: ["Apo B"], description: "Labcorp: desirable under 90, borderline high 90-99, high 100-130" },
 
   // ---- Liver Function ----
   { id: "alt", name: "Alanine Aminotransferase", shortName: "ALT", unit: "U/L", category: "liver", standard: { low: 7, high: 56 }, optimal: { low: 10, high: 30 }, aliases: ["SGPT", "GPT"] },
@@ -97,6 +98,7 @@ export const BIOMARKERS: BiomarkerMeta[] = [
   { id: "bun_creatinine_ratio", name: "BUN/Creatinine Ratio", unit: "ratio", category: "kidney", standard: { low: 10, high: 20 }, optimal: { low: 12, high: 18 } },
   { id: "egfr", name: "Estimated GFR", shortName: "eGFR", unit: "mL/min/1.73m2", category: "kidney", standard: { low: 90, high: 200 }, optimal: { low: 100, high: 200 }, description: "Higher is better; <60 indicates kidney disease" },
   { id: "uric_acid", name: "Uric Acid", unit: "mg/dL", category: "kidney", standard: { low: 3.5, high: 7.2 }, optimal: { low: 3.5, high: 5.5 } },
+  { id: "cystatin_c", name: "Cystatin C", unit: "mg/L", category: "kidney", standard: { low: 0.6, high: 1.0 } },
 
   // ---- Electrolytes ----
   { id: "sodium", name: "Sodium", shortName: "Na", unit: "mEq/L", category: "electrolytes", standard: { low: 136, high: 145 }, optimal: { low: 138, high: 142 } },
@@ -121,6 +123,9 @@ export const BIOMARKERS: BiomarkerMeta[] = [
   { id: "estradiol", name: "Estradiol", shortName: "E2", unit: "pg/mL", category: "hormones", standard: { low: 11, high: 44 }, optimal: { low: 20, high: 35 }, description: "Male reference range" },
   { id: "shbg", name: "Sex Hormone Binding Globulin", shortName: "SHBG", unit: "nmol/L", category: "hormones", standard: { low: 10, high: 57 }, optimal: { low: 20, high: 50 } },
   { id: "psa", name: "Prostate Specific Antigen", shortName: "PSA", unit: "ng/mL", category: "hormones", standard: { low: 0, high: 4.0 }, optimal: { low: 0, high: 1.5 } },
+  { id: "lh", name: "Luteinizing Hormone", shortName: "LH", unit: "mIU/mL", category: "hormones", standard: { low: 1.7, high: 8.6 }, description: "Male reference range" },
+  { id: "fsh", name: "Follicle Stimulating Hormone", shortName: "FSH", unit: "mIU/mL", category: "hormones", standard: { low: 1.5, high: 12.4 }, description: "Male reference range" },
+  { id: "prolactin", name: "Prolactin", unit: "ng/mL", category: "hormones", standard: { low: 3.6, high: 31.5 }, description: "Male reference range" },
 
   // ---- Iron Studies ----
   { id: "iron", name: "Iron", shortName: "Fe", unit: "ug/dL", category: "iron", standard: { low: 60, high: 170 }, optimal: { low: 80, high: 150 } },

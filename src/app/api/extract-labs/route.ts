@@ -117,9 +117,13 @@ export async function POST(req: NextRequest) {
 
     const result = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 8000,
       messages: [{ role: "user", content }],
     });
+
+    if (result.stop_reason === "max_tokens") {
+      return NextResponse.json({ error: "This report has too many results to read in one pass. Try uploading a single page or panel." }, { status: 422 });
+    }
 
     const text = result.content[0].type === "text" ? result.content[0].text : "";
     if (!text) {
@@ -169,7 +173,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine date and source
-    const labDate = date ?? extraction.reportDate ?? new Date().toISOString().slice(0, 10);
+    const todayNY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+    const reportDate = extraction.reportDate && /^\d{4}-\d{2}-\d{2}$/.test(extraction.reportDate) ? extraction.reportDate : null;
+    const labDate = date ?? reportDate ?? todayNY;
     const labSource = source ?? extraction.labName ?? "Unknown Lab";
     const panelName = extraction.panelName ?? "Lab Results";
 

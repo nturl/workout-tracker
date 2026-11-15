@@ -89,7 +89,7 @@ function SheetContent({
   // Range calculations
   const rangeMin = meta.standard.low;
   const rangeMax = meta.standard.high;
-  const rangeSpan = rangeMax - rangeMin;
+  const rangeSpan = rangeMax - rangeMin || 1;
   const padding = rangeSpan * 0.15;
   const barMin = rangeMin - padding;
   const barMax = rangeMax + padding;
@@ -105,7 +105,7 @@ function SheetContent({
     optHighPct = ((meta.optimal.high - barMin) / barSpan) * 100;
   }
 
-  const questions = generateQuestions(meta.shortName ?? meta.name, meta.id, latest);
+  const questions = generateQuestions(meta.shortName ?? meta.name, meta.id, latest, rangeMin, rangeMax);
 
   return (
     <div className="space-y-5">
@@ -438,9 +438,10 @@ function TrendChart({ readings, rangeMin, rangeMax, optimal }: {
 // Generate contextual AI questions
 // ---------------------------------------------------------------------------
 
-function generateQuestions(name: string, id: string, latest: BiomarkerReading): string[] {
+function generateQuestions(name: string, id: string, latest: BiomarkerReading, low: number, high: number): string[] {
+  const direction = latest.value < low ? "low" : latest.value > high ? "elevated" : null;
   const base = [
-    `What causes ${latest.status === "out_of_range" ? "abnormal" : "elevated"} ${name} levels?`,
+    `What causes ${direction ?? (latest.status === "out_of_range" ? "abnormal" : "elevated")} ${name} levels?`,
     `How can I improve my ${name}?`,
   ];
 

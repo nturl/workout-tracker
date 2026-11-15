@@ -168,6 +168,16 @@ describe("getRecoveryLevel", () => {
     const level = getRecoveryLevel({ date: "2026-03-30", oura: { hrv: 65 } });
     expect(level.label).toBe("Well Recovered");
   });
+
+  it("uses the score over HRV when both are present", () => {
+    const level = getRecoveryLevel({ date: "2026-03-30", oura: { readinessScore: 55, hrv: 62 } });
+    expect(level.label).toBe("Low Recovery");
+  });
+
+  it("falls back to HRV for the moderate tier only when there is no score", () => {
+    expect(getRecoveryLevel({ date: "2026-03-30", oura: { hrv: 45 } }).label).toBe("Moderate Recovery");
+    expect(getRecoveryLevel({ date: "2026-03-30", oura: { readinessScore: 90, hrv: 20 } }).label).toBe("Well Recovered");
+  });
 });
 
 describe("getGreeting", () => {

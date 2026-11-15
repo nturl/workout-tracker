@@ -27,7 +27,7 @@ function buildHealthContext(
   }
 
   const recoveryEntries = Object.entries(recoveryData);
-  const recentRecovery = recoveryEntries.slice(-7);
+  const recentRecovery = recoveryEntries.sort(([a], [b]) => a.localeCompare(b)).slice(-7);
   const recoveryLines = recentRecovery.map(([date, entry]) => {
     const e = entry as Record<string, unknown>;
     const parts: string[] = [`Date: ${date}`];
