@@ -162,6 +162,9 @@ export interface ProgrammingNotes {
 
 export interface DayPlan {
   day: string;
+  // When the day's training block is scheduled, e.g. "7:45-8:30 AM ET" or
+  // "No set time". Only set on the plan in effect from SCHEDULE_SHIFT_WEEK.
+  time?: string;
   theme: string;
   focus: string;
   programmingNotes?: ProgrammingNotes;
@@ -405,7 +408,10 @@ const ptShoulderSession: WorkoutSession = {
   levels: { beginner: ptRehabDetail, intermediate: ptRehabDetail, advanced: ptRehabDetail },
 };
 
-export const weeklyPlan: DayPlan[] = [
+// The plan as it ran through Saturday 2026-11-14 (lift Monday/Friday). Frozen:
+// history views read it for weeks before SCHEDULE_SHIFT_WEEK so past
+// completions keep resolving against the days they were logged on.
+export const legacyWeeklyPlan: DayPlan[] = [
   {
     day: "Monday",
     theme: "Build",
@@ -1071,6 +1077,68 @@ export const weeklyPlan: DayPlan[] = [
     ],
   },
 ];
+
+// ── Schedule shift, effective Sunday 2026-11-15 ──────────────────
+// Every training day moved one day earlier (lift Sunday/Thursday, conditioning
+// Monday, recovery Tuesday, sauna + Tabata Wednesday, adventure Friday, social
+// sport Saturday) and Sunday-Thursday train 7:45-8:30 AM America/New_York.
+// Weeks start on Sunday, so the change lands exactly on a week boundary: a
+// week key before this one uses legacyWeeklyPlan, this one and later use
+// weeklyPlan. Session content is carried over untouched; only the day a
+// session sits on, the weekday names in its copy, and its time change.
+export const SCHEDULE_SHIFT_WEEK = "2026-11-15";
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MORNING_BLOCK = "7:45-8:30 AM";
+const MORNING_BLOCK_DAYS = new Set(["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"]);
+
+/** Rewrites every weekday name in `text` to the day before it ("Monday's lifts" -> "Sunday's lifts"). */
+export function shiftDayNames(text: string): string {
+  return text.replace(/Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday/g, (d) => WEEKDAYS[(WEEKDAYS.indexOf(d) + 6) % 7]);
+}
+
+// Memoized so objects shared in the legacy plan (the daily posture sessions,
+// the lift arrays both strength days point at) stay shared in the new one.
+const shifted = new WeakMap<object, unknown>();
+function shiftStrings<T>(value: T): T {
+  if (typeof value === "string") return shiftDayNames(value) as T;
+  if (!value || typeof value !== "object") return value;
+  if (shifted.has(value)) return shifted.get(value) as T;
+  const copy = Array.isArray(value)
+    ? value.map(shiftStrings)
+    : Object.fromEntries(Object.entries(value).map(([k, v]) => [k, shiftStrings(v)]));
+  shifted.set(value, copy);
+  return copy as T;
+}
+
+// The plan in effect now. Sunday-first, since it is legacyWeeklyPlan
+// (Monday-first) with each day moved back one.
+export const weeklyPlan: DayPlan[] = legacyWeeklyPlan.map((legacyDay) => {
+  const day = shiftStrings(legacyDay);
+  const timed = MORNING_BLOCK_DAYS.has(day.day);
+  return {
+    ...day,
+    time: timed ? `${MORNING_BLOCK} ET` : "No set time",
+    // On morning-block days, replace the old evening / unscheduled slot with
+    // the block. Notes that are not a time of day (bi-weekly cadence, "bookend
+    // the circuit", the daily posture work) stay as written.
+    sessions: day.sessions.map((s) =>
+      timed && /^(Late afternoon \/ early evening|Any time$)/.test(s.timeOfDay)
+        ? {
+            ...s,
+            timeOfDay: s.timeOfDay
+              .replace(/^(Late afternoon \/ early evening|Any time$)/, MORNING_BLOCK)
+              .replace(" (3+ hrs before bed)", ""),
+          }
+        : s
+    ),
+  };
+});
+
+/** The plan that applies to the week starting on `wk` (a Sunday, YYYY-MM-DD). */
+export function planForWeek(wk: string): DayPlan[] {
+  return wk >= SCHEDULE_SHIFT_WEEK ? weeklyPlan : legacyWeeklyPlan;
+}
 
 export const categoryColors: Record<string, { gradient: string; bg: string; text: string; badge: string }> = {
   strength: { gradient: "from-blue-500 to-indigo-600", bg: "bg-blue-50", text: "text-blue-700", badge: "bg-blue-100 text-blue-700" },

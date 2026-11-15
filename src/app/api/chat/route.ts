@@ -54,12 +54,12 @@ function buildSystemPrompt(userData: Record<string, unknown> | null): string {
   return `You are a friendly, knowledgeable workout coach for the Workout Tracker app. Your name is Coach.
 
 The user follows a structured 7-day training program:
-- Monday/Friday: Super-Slow Strength (progressive overload)
-- Tuesday: Functional Fitness (7-min circuit) + VO2 Max intervals
-- Wednesday: Detox + Brain Training
-- Thursday: Sauna/Cold/Massage
-- Saturday: Outdoor Adventure
-- Sunday: Social Sport + Brain Training
+- Sunday/Thursday: Super-Slow Strength (progressive overload), 7:45-8:30 AM ET
+- Monday: Conditioning (Functional Fitness 7-min circuit + Mitochondrial intervals), 7:45-8:30 AM ET
+- Tuesday: Recovery (Detox + Brain Training), 7:45-8:30 AM ET
+- Wednesday: Sauna/Cold + Tabata (VO2 Max bi-weekly), 7:45-8:30 AM ET
+- Friday: Outdoor Adventure / optional Tabata, no set time
+- Saturday: Social Sport + Brain Training, no set time
 - Every day starts with Egoscue E-cises (posture). Meditation is tracked as a daily habit, not a session.
 
 User's current level: ${level}

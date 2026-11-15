@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useState, useCallback } from "react";
-import { weeklyPlan } from "@/lib/workoutData";
+import { weeklyPlan, planForWeek } from "@/lib/workoutData";
 import { DAYS, weekKey, sessionKey } from "@/lib/helpers";
 import { DOT_COLORS } from "@/lib/colors";
 import type { CompletionRecord } from "@/types/workout";
@@ -31,7 +31,7 @@ export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions
       d.setDate(today.getDate() - i);
       const dayName = DAYS[d.getDay()];
       const wk = weekKey(d);
-      const plan = weeklyPlan.find((p) => p.day === dayName);
+      const plan = planForWeek(wk).find((p) => p.day === dayName);
 
       if (dayIdx === 0) weekStarts.push(new Date(d));
 
@@ -52,7 +52,7 @@ export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions
       const cell = grid[dayIdx][weekIdx];
       const dayName = DAYS[cell.date.getDay()];
       const wk = weekKey(cell.date);
-      const plan = weeklyPlan.find((p) => p.day === dayName);
+      const plan = planForWeek(wk).find((p) => p.day === dayName);
       if (!plan) continue;
       total += plan.sessions.length;
       done += plan.sessions.filter((s) => completions[sessionKey(wk, dayName, s)]).length;

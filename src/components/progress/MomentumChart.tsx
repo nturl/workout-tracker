@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useState } from "react";
-import { weeklyPlan } from "@/lib/workoutData";
+import { planForWeek } from "@/lib/workoutData";
 import { DAYS, weekKey, sessionKey } from "@/lib/helpers";
 import { ConsistencyHeatmap } from "@/components/progress/Heatmap";
 import { Icon } from "@/components/ui/Icon";
@@ -46,7 +46,7 @@ export const MomentumChart = memo(function MomentumChart({ completions }: { comp
       day.setDate(start.getDate() + d);
       const dayName = DAYS[day.getDay()];
       const wk = weekKey(day);
-      const plan = weeklyPlan.find((p) => p.day === dayName);
+      const plan = planForWeek(wk).find((p) => p.day === dayName);
       if (!plan) continue;
       total += plan.sessions.length;
       done += plan.sessions.filter((s) => completions[sessionKey(wk, dayName, s)]).length;

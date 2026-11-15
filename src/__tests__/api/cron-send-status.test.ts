@@ -137,7 +137,7 @@ describe("/api/cron/send-status (web push)", () => {
       "user:u1:push-subs": JSON.stringify([sub("https://example.com/1")]),
       "user:u1:push-prefs": prefs(),
     });
-    const res = await GET(makeGet({ test: "1", day: "Monday", checkpoint: "afternoon" }, `Bearer ${CRON_SECRET}`));
+    const res = await GET(makeGet({ test: "1", day: "Sunday", checkpoint: "afternoon" }, `Bearer ${CRON_SECRET}`));
     const data = await res.json();
     const detail = data.details.find((d: { reason: string }) => d.reason.includes("would send"));
     expect(detail.reason).toContain("Super-Slow Strength");
@@ -145,13 +145,14 @@ describe("/api/cron/send-status (web push)", () => {
   });
 
   it("reports all done when the day's session is completed", async () => {
-    const key = `${currentWeekKey()}:Monday:super-slow-strength`;
+    // Strength sits on Sunday and Thursday since the 2026-11-15 schedule shift.
+    const key = `${currentWeekKey()}:Sunday:super-slow-strength`;
     seedMockRedis({
       "user:u1:push-subs": JSON.stringify([sub("https://example.com/1")]),
       "user:u1:push-prefs": prefs(),
       "user:u1:data": JSON.stringify({ completions: { [key]: true } }),
     });
-    const res = await GET(makeGet({ test: "1", day: "Monday", checkpoint: "evening" }, `Bearer ${CRON_SECRET}`));
+    const res = await GET(makeGet({ test: "1", day: "Sunday", checkpoint: "evening" }, `Bearer ${CRON_SECRET}`));
     const data = await res.json();
     const detail = data.details.find((d: { reason: string }) => d.reason.includes("would send"));
     expect(detail.reason).toContain("All 1 done");

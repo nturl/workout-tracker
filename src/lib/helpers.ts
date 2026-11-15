@@ -1,4 +1,4 @@
-import { weeklyPlan, type WorkoutSession } from "@/lib/workoutData";
+import { planForWeek, type WorkoutSession } from "@/lib/workoutData";
 import type { CompletionRecord, DailyHabitRecord, RecoveryEntry, RecoveryLevel } from "@/types/workout";
 
 export const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
@@ -73,7 +73,7 @@ export function calculateStreak(completions: CompletionRecord): number {
     checkDate.setDate(today.getDate() - i);
     const dayName = DAYS[checkDate.getDay()];
     const wk = weekKey(checkDate);
-    const plan = weeklyPlan.find((d) => d.day === dayName);
+    const plan = planForWeek(wk).find((d) => d.day === dayName);
     if (!plan) continue;
     const allDone = plan.sessions.every((s) => !isSessionScheduled(s, wk) || completions[sessionKey(wk, dayName, s)]);
     if (allDone) streak++;
@@ -90,7 +90,7 @@ export function getBestStreak(completions: CompletionRecord): number {
     checkDate.setDate(today.getDate() - i);
     const dayName = DAYS[checkDate.getDay()];
     const wk = weekKey(checkDate);
-    const plan = weeklyPlan.find((d) => d.day === dayName);
+    const plan = planForWeek(wk).find((d) => d.day === dayName);
     if (!plan) continue;
     const allDone = plan.sessions.every((s) => !isSessionScheduled(s, wk) || completions[sessionKey(wk, dayName, s)]);
     if (allDone) { current++; best = Math.max(best, current); }
@@ -101,7 +101,7 @@ export function getBestStreak(completions: CompletionRecord): number {
 
 export function getWeekProgress(completions: CompletionRecord, wk: string) {
   let total = 0, done = 0;
-  weeklyPlan.forEach((day) => {
+  planForWeek(wk).forEach((day) => {
     day.sessions.forEach((s) => {
       if (!isSessionScheduled(s, wk)) return;
       total++;

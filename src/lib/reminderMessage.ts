@@ -5,7 +5,7 @@
 
 import { getRedis } from "./redis";
 import type { PushPayload } from "./webpush";
-import { weeklyPlan, type DayPlan, type WorkoutSession, type Level } from "./workoutData";
+import { planForWeek, shiftDayNames, SCHEDULE_SHIFT_WEEK, type DayPlan, type WorkoutSession, type Level } from "./workoutData";
 import { isBiWeeklyOn, isSessionScheduled, sessionKey, getWeekProgress } from "./helpers";
 
 export const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
@@ -28,6 +28,7 @@ interface DayWorkout {
   tip: string;
 }
 
+// Headlines for the plan that ran through 2026-11-14 (see legacyWeeklyPlan).
 export const DAILY_WORKOUTS: Record<DayName, DayWorkout> = {
   Monday: { title: "Super-Slow Strength", emoji: "🏋️", tip: "10s up, 10s down. Time under tension." },
   Tuesday: { title: "Functional Fitness + Mitochondrial", emoji: "🫀", tip: "7-min circuit + 4 rounds 30-60s all-out. Aerobic anchor." },
@@ -37,6 +38,16 @@ export const DAILY_WORKOUTS: Record<DayName, DayWorkout> = {
   Saturday: { title: "Adventure + Tabata #2", emoji: "🏔️", tip: "Get outside. Tabata #2 unless adventure went over 90 min hard." },
   Sunday: { title: "Social Sport + Brain Training", emoji: "⚽", tip: "Play something fun with others." },
 };
+
+/**
+ * The reminder headline for dayName in week wk. From SCHEDULE_SHIFT_WEEK every
+ * day runs what the following day used to, so read tomorrow's legacy entry.
+ */
+export function dailyWorkout(dayName: DayName, wk: string): DayWorkout {
+  if (wk < SCHEDULE_SHIFT_WEEK) return DAILY_WORKOUTS[dayName];
+  const legacy = DAILY_WORKOUTS[DAY_NAMES[(DAY_NAMES.indexOf(dayName) + 1) % 7]];
+  return { ...legacy, tip: shiftDayNames(legacy.tip) };
+}
 
 async function kvGet<T>(key: string): Promise<T | null> {
   const redis = getRedis();
@@ -104,7 +115,7 @@ function getStreak(completions: Record<string, boolean>, dateKey: string): numbe
     const [y, m, d] = key.split("-").map(Number);
     const dayName = DAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
     const wk = weekStartKey(key);
-    const plan = weeklyPlan.find((p) => p.day === dayName);
+    const plan = planForWeek(wk).find((p) => p.day === dayName);
     if (!plan) continue;
     const allDone = plan.sessions.every((s) => !isSessionScheduled(s, wk) || completions[sessionKey(wk, dayName, s)]);
     if (allDone) streak++;
@@ -192,8 +203,8 @@ function getLevel(data: SyncedData): Level {
 }
 
 export async function buildReminderPayload(ctx: ReminderContext): Promise<PushPayload> {
-  const workout = DAILY_WORKOUTS[ctx.dayName];
   const wk = weekStartKey(ctx.dateKey);
+  const workout = dailyWorkout(ctx.dayName, wk);
   const [data, recovery] = await Promise.all([
     getSyncedData(ctx.userId),
     getRecoveryInsight(ctx.userId, ctx.dateKey),
@@ -203,7 +214,7 @@ export async function buildReminderPayload(ctx: ReminderContext): Promise<PushPa
   const streak = getStreak(completions, ctx.dateKey);
   const progress = getWeekProgress(completions, wk);
 
-  const day = weeklyPlan.find((d) => d.day === ctx.dayName);
+  const day = planForWeek(wk).find((d) => d.day === ctx.dayName);
   const specifics = day ? specificWorkoutLine(day, level, wk) : workout.tip;
 
   const bodyParts: string[] = [specifics];
@@ -236,7 +247,7 @@ export interface StatusContext extends ReminderContext {
  */
 export async function buildStatusPayload(ctx: StatusContext): Promise<PushPayload> {
   const wk = weekStartKey(ctx.dateKey);
-  const day = weeklyPlan.find((d) => d.day === ctx.dayName);
+  const day = planForWeek(wk).find((d) => d.day === ctx.dayName);
   const sessions = day ? headlineSessions(day, wk) : [];
   const completions = (await getSyncedData(ctx.userId)).completions || {};
 

@@ -1,8 +1,8 @@
 "use client";
 
 import { memo } from "react";
-import { weeklyPlan } from "@/lib/workoutData";
-import { getTodayDayName, getWeekDates } from "@/lib/helpers";
+import { planForWeek } from "@/lib/workoutData";
+import { getTodayDayName, getWeekDates, weekKey } from "@/lib/helpers";
 import { DOT_COLORS } from "@/lib/colors";
 
 interface WeekRhythmProps {
@@ -16,6 +16,7 @@ export const WeekRhythm = memo(function WeekRhythm({ selectedDay, onSelectDay, w
   const todayName = getTodayDayName();
   const weekDates = getWeekDates(weekOffset);
   const isCurrentWeek = weekOffset === 0;
+  const wk = weekKey(weekDates[0].date);
 
   const firstDate = weekDates[0].dateLabel;
   const lastDate = weekDates[6].dateLabel;
@@ -43,7 +44,7 @@ export const WeekRhythm = memo(function WeekRhythm({ selectedDay, onSelectDay, w
       </div>
       <div className="flex gap-1 w-full" role="tablist" aria-label="Day selector">
         {weekDates.map(({ day, dateLabel }) => {
-          const plan = weeklyPlan.find((d) => d.day === day);
+          const plan = planForWeek(wk).find((d) => d.day === day);
           const isToday = isCurrentWeek && day === todayName;
           const isSelected = day === selectedDay;
           const dotColor = DOT_COLORS[plan?.sessions[plan.sessions.length - 1]?.category || "recovery"] || "var(--text-muted)";

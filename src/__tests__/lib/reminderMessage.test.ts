@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import "../mocks/redis";
 import { clearMockRedis, seedMockRedis } from "../mocks/redis";
-import { weeklyPlan } from "@/lib/workoutData";
+import { planForWeek } from "@/lib/workoutData";
 import { sessionKey, isSessionScheduled, getWeekProgress } from "@/lib/helpers";
 import { buildReminderPayload, buildStatusPayload, localTimeParts, dateKeyInTimezone, DAILY_WORKOUTS, minutesSinceReminder } from "@/lib/reminderMessage";
 
@@ -65,7 +65,7 @@ describe("reminderMessage", () => {
     // Every scheduled session on dayName in week wk, marked done.
     function dayDone(wk: string, dayName: string): Record<string, boolean> {
       const out: Record<string, boolean> = {};
-      for (const s of weeklyPlan.find((d) => d.day === dayName)!.sessions) {
+      for (const s of planForWeek(wk).find((d) => d.day === dayName)!.sessions) {
         if (isSessionScheduled(s, wk)) out[sessionKey(wk, dayName, s)] = true;
       }
       return out;

@@ -56,6 +56,41 @@ describe("audio module", () => {
     vi.unstubAllGlobals();
   });
 
+  // Regression: the session was set to "playback", which is exclusive on iOS
+  // and paused Spotify the moment a timer started.
+  it("unlockAudio leaves the iOS audio session mixable, never exclusive", async () => {
+    const audioSession = { type: "auto" };
+    vi.stubGlobal("navigator", { audioSession } as unknown as Navigator);
+    const { unlockAudio } = await import("@/lib/audio");
+    unlockAudio();
+    expect(audioSession.type).toBe("ambient");
+  });
+
+  it("a cue fired before any unlock still sets the mixable session, and corrects a stale playback one", async () => {
+    const audioSession = { type: "playback" };
+    vi.stubGlobal("navigator", { audioSession } as unknown as Navigator);
+    const { playRepTick } = await import("@/lib/audio");
+    playRepTick();
+    expect(audioSession.type).toBe("ambient");
+  });
+
+  it("no source file requests an exclusive audio session or a media element", async () => {
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) { if (name !== "__tests__") walk(p); continue; }
+        if (!/\.(ts|tsx)$/.test(name)) continue;
+        const src = readFileSync(p, "utf8");
+        if (/type\s*=\s*"(playback|transient-solo|play-and-record)"|new Audio\(|<audio|<video/.test(src)) offenders.push(p);
+      }
+    };
+    walk(join(process.cwd(), "src"));
+    expect(offenders).toEqual([]);
+  });
+
   it("playRepTick creates a 600Hz oscillator", async () => {
     const { playRepTick } = await import("@/lib/audio");
     playRepTick();

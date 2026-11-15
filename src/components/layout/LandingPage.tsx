@@ -14,13 +14,13 @@ const FEATURES = [
 ];
 
 const DAYS_PREVIEW = [
-  { day: "Mon", theme: "Build", emoji: "🏋️", color: "#3b82f6" },
-  { day: "Tue", theme: "Burn", emoji: "⚡", color: "#f97316" },
-  { day: "Wed", theme: "Restore", emoji: "🧘", color: "#10b981" },
-  { day: "Thu", theme: "Heat", emoji: "🔥", color: "#f59e0b" },
-  { day: "Fri", theme: "Build", emoji: "💪", color: "#3b82f6" },
-  { day: "Sat", theme: "Explore", emoji: "🏔️", color: "#f59e0b" },
-  { day: "Sun", theme: "Connect", emoji: "🤝", color: "#14b8a6" },
+  { day: "Sun", theme: "Build", emoji: "🏋️", color: "#3b82f6" },
+  { day: "Mon", theme: "Burn", emoji: "⚡", color: "#f97316" },
+  { day: "Tue", theme: "Restore", emoji: "🧘", color: "#10b981" },
+  { day: "Wed", theme: "Heat", emoji: "🔥", color: "#f59e0b" },
+  { day: "Thu", theme: "Build", emoji: "💪", color: "#3b82f6" },
+  { day: "Fri", theme: "Explore", emoji: "🏔️", color: "#f59e0b" },
+  { day: "Sat", theme: "Connect", emoji: "🤝", color: "#14b8a6" },
 ];
 
 // Static product shot of the in-workout timer: real TimerRing component, no

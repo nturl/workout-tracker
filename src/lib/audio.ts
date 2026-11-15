@@ -24,6 +24,8 @@ function getCtx(): AudioContext | null {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;
+    // Set before the context exists so it never starts out exclusive.
+    setMixableAudioSession();
     ctx = new AC();
     bindVisibilityResume();
     return ctx;
@@ -32,13 +34,23 @@ function getCtx(): AudioContext | null {
   }
 }
 
+// Timer cues must play alongside whatever the phone is already playing
+// (Spotify, a podcast). On iOS the page's audio session type decides that:
+// "playback" is exclusive and pauses other apps' audio the moment a timer
+// starts, "ambient" mixes with it. The cost of "ambient" is that the
+// ring/silent switch mutes the cues; the web has no type that both mixes and
+// ignores the switch. Haptics still fire when the phone is on silent.
+export function setMixableAudioSession(): void {
+  if (typeof navigator === "undefined") return;
+  const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+  if (session && session.type !== "ambient") session.type = "ambient";
+}
+
 // iOS Safari requires audio context to be unlocked from a user gesture handler.
 // Call this from every user interaction that may precede a beep (start, resume,
 // skip) since backgrounding can resuspend the context between gestures.
 export function unlockAudio(): void {
-  // Safari 17+: without this, the ring/silent switch mutes every timer cue.
-  const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
-  if (session && session.type !== "playback") session.type = "playback";
+  setMixableAudioSession();
   const c = getCtx();
   if (!c) return;
   if (c.state === "suspended") {

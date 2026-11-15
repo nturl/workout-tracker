@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   splitPrescription,
   weeklyPlan,
+  legacyWeeklyPlan,
+  planForWeek,
+  shiftDayNames,
+  SCHEDULE_SHIFT_WEEK,
   superSlowExercises,
   superSlowRepProtocol,
   parseTimedExercise,
@@ -10,8 +14,11 @@ import {
   type DayPlan,
 } from "@/lib/workoutData";
 
+// These helpers read the plan that ran through 2026-11-14 (lift Monday/Friday);
+// the suites below pin its content by the day names it used. The plan in
+// effect from 2026-11-15 is covered by the "schedule shift" suite at the end.
 function findSession(day: string, title: string): WorkoutSession {
-  const plan = weeklyPlan.find((d) => d.day === day);
+  const plan = legacyWeeklyPlan.find((d) => d.day === day);
   if (!plan) throw new Error(`Day not found: ${day}`);
   const session = plan.sessions.find((s) => s.title === title);
   if (!session) throw new Error(`Session not found: ${day} / ${title}`);
@@ -19,7 +26,7 @@ function findSession(day: string, title: string): WorkoutSession {
 }
 
 function findDay(day: string): DayPlan {
-  const plan = weeklyPlan.find((d) => d.day === day);
+  const plan = legacyWeeklyPlan.find((d) => d.day === day);
   if (!plan) throw new Error(`Day not found: ${day}`);
   return plan;
 }
@@ -332,5 +339,72 @@ describe("workoutData - splitPrescription", () => {
   it("leaves names without a ': N rounds' suffix whole", () => {
     expect(splitPrescription("8 rounds × 20s/10s")).toEqual({ title: "8 rounds × 20s/10s", chip: null });
     expect(splitPrescription("Wall Sit (30s)")).toEqual({ title: "Wall Sit (30s)", chip: null });
+  });
+});
+
+describe("workoutData - schedule shift effective 2026-11-15", () => {
+  const titles = (plan: DayPlan[], day: string) => plan.find((d) => d.day === day)!.sessions.map((s) => s.title);
+  const headline = (day: string) => titles(weeklyPlan, day).filter((t) => t !== "Egoscue E-cises" && t !== "PT Shoulder Rehab");
+
+  it("puts each day's training one day earlier", () => {
+    expect(headline("Sunday")).toEqual(["Super-Slow Strength"]);
+    expect(headline("Monday")).toEqual(["Functional Fitness", "Mitochondrial Training"]);
+    expect(headline("Tuesday")).toEqual(["Morning Detox Session", "Brain Training"]);
+    expect(headline("Wednesday")).toEqual(["VO2 Max Training", "Tabata", "Hot and Cold"]);
+    expect(headline("Thursday")).toEqual(["Super-Slow Strength"]);
+    expect(headline("Friday")).toEqual(["Adventure of Choice", "Tabata"]);
+    expect(headline("Saturday")).toEqual(["Social Sport", "Brain Training"]);
+  });
+
+  it("Thursday repeats Sunday's lifts", () => {
+    const lift = (day: string) => weeklyPlan.find((d) => d.day === day)!.sessions.find((s) => s.title === "Super-Slow Strength")!;
+    for (const level of ["beginner", "intermediate", "advanced"] as const) {
+      expect(lift("Thursday").levels[level].exercises).toBe(lift("Sunday").levels[level].exercises);
+    }
+    expect(lift("Thursday").levels.beginner.instructions).toContain("Same exercises as Sunday");
+  });
+
+  it("Sunday-Thursday train 7:45-8:30 AM ET; Friday and Saturday have no set time", () => {
+    for (const day of ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"]) {
+      const plan = weeklyPlan.find((d) => d.day === day)!;
+      expect(plan.time, day).toBe("7:45-8:30 AM ET");
+      for (const s of plan.sessions) expect(s.timeOfDay, `${day} / ${s.title}`).not.toMatch(/afternoon|evening|^Any time$/i);
+    }
+    const mainTime = (day: string, title: string) => weeklyPlan.find((d) => d.day === day)!.sessions.find((s) => s.title === title)!.timeOfDay;
+    expect(mainTime("Sunday", "Super-Slow Strength")).toBe("7:45-8:30 AM");
+    expect(mainTime("Monday", "Functional Fitness")).toBe("7:45-8:30 AM");
+    expect(mainTime("Tuesday", "Morning Detox Session")).toBe("7:45-8:30 AM (or Wednesday if unavailable)");
+    expect(mainTime("Wednesday", "Tabata")).toBe("7:45-8:30 AM");
+    expect(mainTime("Wednesday", "Hot and Cold")).toBe("7:45-8:30 AM");
+    expect(mainTime("Thursday", "Super-Slow Strength")).toBe("7:45-8:30 AM");
+    for (const day of ["Friday", "Saturday"]) {
+      const plan = weeklyPlan.find((d) => d.day === day)!;
+      expect(plan.time).toBe("No set time");
+      for (const s of plan.sessions) expect(s.timeOfDay).not.toContain("7:45");
+    }
+  });
+
+  it("carries every session's workout detail over unchanged", () => {
+    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    for (const legacyDay of legacyWeeklyPlan) {
+      const newDay = weeklyPlan.find((d) => d.day === DAYS[(DAYS.indexOf(legacyDay.day) + 6) % 7])!;
+      expect(newDay.theme).toBe(legacyDay.theme);
+      expect(newDay.sessions.map((s) => s.title)).toEqual(legacyDay.sessions.map((s) => s.title));
+      legacyDay.sessions.forEach((legacy, i) => {
+        // Identical, time of day aside, once the weekday names in the legacy copy are moved back a day.
+        expect(JSON.stringify({ ...newDay.sessions[i], timeOfDay: "" })).toBe(shiftDayNames(JSON.stringify({ ...legacy, timeOfDay: "" })));
+      });
+    }
+  });
+
+  it("history before 2026-11-15 keeps the old plan; that week onward uses the new one", () => {
+    expect(SCHEDULE_SHIFT_WEEK).toBe("2026-11-15");
+    expect(planForWeek("2026-11-08")).toBe(legacyWeeklyPlan);
+    expect(planForWeek("2026-11-15")).toBe(weeklyPlan);
+    expect(planForWeek("2026-11-22")).toBe(weeklyPlan);
+    expect(titles(planForWeek("2026-11-08"), "Monday")).toContain("Super-Slow Strength");
+    expect(titles(planForWeek("2026-11-08"), "Sunday")).not.toContain("Super-Slow Strength");
+    // The frozen plan still says what it always said.
+    expect(legacyWeeklyPlan.find((d) => d.day === "Friday")!.focus).toContain("Monday's lifts");
   });
 });

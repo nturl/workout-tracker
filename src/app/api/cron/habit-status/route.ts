@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRedis } from "@/lib/redis";
-import { weeklyPlan } from "@/lib/workoutData";
+import { planForWeek } from "@/lib/workoutData";
 import { DAYS, weekKey, sessionKey, isSessionScheduled } from "@/lib/helpers";
 import type { CompletionRecord, DailyHabitRecord } from "@/types/workout";
 import type { HabitDef } from "@/lib/habits";
@@ -20,7 +20,7 @@ function exerciseCompletedOn(dateStr: string, completions: CompletionRecord): bo
   const date = new Date(y, m - 1, d);
   const dayName = DAYS[date.getDay()];
   const wk = weekKey(date);
-  const plan = weeklyPlan.find((p) => p.day === dayName);
+  const plan = planForWeek(wk).find((p) => p.day === dayName);
   const scheduled = (plan?.sessions ?? []).filter((s) => isSessionScheduled(s, wk));
   if (scheduled.length === 0) return null;
   return scheduled.every((s) => completions[sessionKey(wk, dayName, s)]);

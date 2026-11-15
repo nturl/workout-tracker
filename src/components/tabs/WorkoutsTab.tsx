@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback, useEffect, useState, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
-import { weeklyPlan, type WorkoutSession } from "@/lib/workoutData";
+import { planForWeek, type WorkoutSession } from "@/lib/workoutData";
 import { weekKey, weekKeyForOffset, sessionKey, getTodayDayName, getWeekProgress, calculateStreak, getBestStreak, calculateDailyHabitStreak, getBestDailyHabitStreak, getLastNDays, todayKey, isSessionScheduled } from "@/lib/helpers";
 import { useWorkoutStore } from "@/hooks/useWorkoutStore";
 import { useTodayKey } from "@/hooks/useTodayKey";
@@ -197,7 +197,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
     if (addingHabit) addHabitInputRef.current?.focus();
   }, [addingHabit]);
 
-  const activePlan = weeklyPlan.find((d) => d.day === selectedDay);
+  const activePlan = planForWeek(wk).find((d) => d.day === selectedDay);
 
   const handleToggle = useCallback((dayName: string, session: WorkoutSession) => {
     const key = sessionKey(wk, dayName, session);
@@ -249,6 +249,9 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
                 )}
                 <span className="ml-auto text-xs font-semibold tracking-wide" style={{ color: "var(--text-muted)" }}>{activePlan.theme}</span>
               </div>
+              {activePlan.time && (
+                <p className="text-[13px] font-semibold mb-1" style={{ color: "var(--text-primary)" }}>{activePlan.time}</p>
+              )}
               <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{activePlan.focus}</p>
               {activePlan.programmingNotes && <ProgrammingNotes notes={activePlan.programmingNotes} />}
             </div>
