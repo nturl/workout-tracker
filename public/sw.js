@@ -5,9 +5,9 @@
 // static assets cached under it (which would otherwise reference chunk URLs
 // from a build that no longer exists on the server). There's no build step
 // wired up to bump this automatically; it has to be done by hand per deploy.
-const CACHE_NAME = "workout-tracker-v7";
-const STATIC_CACHE = "workout-static-v7";
-const API_CACHE = "workout-api-v7";
+const CACHE_NAME = "workout-tracker-v8";
+const STATIC_CACHE = "workout-static-v8";
+const API_CACHE = "workout-api-v8";
 
 // Deliberately NOT listing hashed Next.js chunk/CSS filenames here: they
 // change every build, so a hand-maintained list would go stale (missing new
@@ -95,8 +95,12 @@ self.addEventListener("fetch", (event) => {
       caches.match(event.request).then((cached) => {
         if (cached) return cached;
         return fetch(event.request).then((response) => {
-          const clone = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
+          // Only cache a good response: a 404/5xx chunk during a deploy would
+          // otherwise be served cache-first from then on.
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
+          }
           return response;
         });
       })
@@ -144,7 +148,11 @@ self.addEventListener("notificationclick", (event) => {
         const url = new URL(client.url);
         if (url.origin === self.location.origin) {
           await client.focus();
-          if ("navigate" in client) {
+          // Navigating reloads the PWA and would kill a running workout timer,
+          // so only navigate when the open window is somewhere else.
+          const target = new URL(targetUrl, self.location.origin);
+          const alreadyThere = url.origin === target.origin && url.pathname === target.pathname;
+          if (!alreadyThere && "navigate" in client) {
             try { await client.navigate(targetUrl); } catch {}
           }
           return;

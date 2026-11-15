@@ -95,15 +95,26 @@ async function sendStatusUpdates(
 
           // One check-in per user per local date per checkpoint, even if the cron
           // fires twice. An authenticated ?checkpoint= manual trigger bypasses it.
+          const claimKey = `reminder:${userId}:${dateKey}:${checkpoint}`;
           if (!options.forceCheckpoint) {
-            const claimed = await getRedis().set(`reminder:${userId}:${dateKey}:${checkpoint}`, "1", "EX", 86400, "NX");
+            const claimed = await getRedis().set(claimKey, "1", "EX", 86400, "NX");
             if (!claimed) {
               result.details.push({ userId: userId.slice(0, 8), reason: `${checkpoint}: already sent today` });
               continue;
             }
           }
 
-          const sendResult = await sendPush(userId, payload);
+          // Nothing went out, so give the claim back or later ticks that day
+          // would skip this check-in as "already sent". A manual trigger never
+          // took a claim, so it has none to release.
+          let sendResult;
+          try {
+            sendResult = await sendPush(userId, payload);
+          } catch (err) {
+            if (!options.forceCheckpoint) await getRedis().del(claimKey);
+            throw err;
+          }
+          if (sendResult.sent === 0 && !options.forceCheckpoint) await getRedis().del(claimKey);
           result.sent += sendResult.sent;
           result.failed += sendResult.failed;
           if (sendResult.errors.length > 0) result.errors.push(...sendResult.errors);

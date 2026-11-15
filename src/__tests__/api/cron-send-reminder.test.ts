@@ -186,6 +186,16 @@ describe("/api/cron/send-reminder (web push)", () => {
       expect(second.details[0].reason).toContain("already sent");
     });
 
+    it("releases the claim when nothing was sent, so a later tick retries", async () => {
+      seedInWindow();
+      mockSendNotification.mockRejectedValueOnce(new Error("push service down"));
+      const first = await (await GET(makeGet({}, `Bearer ${CRON_SECRET}`))).json();
+      expect(first.sent).toBe(0);
+      const second = await (await GET(makeGet({}, `Bearer ${CRON_SECRET}`))).json();
+      expect(second.sent).toBe(1);
+      expect(mockSendNotification).toHaveBeenCalledTimes(2);
+    });
+
     it("a ?test=1 dry run does not claim the slot", async () => {
       seedInWindow();
       await GET(makeGet({ test: "1" }, `Bearer ${CRON_SECRET}`));

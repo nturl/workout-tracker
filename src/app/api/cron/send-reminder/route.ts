@@ -86,13 +86,23 @@ async function sendReminders(options: { dryRun?: boolean; forceDay?: string } = 
         }
 
         // One reminder per user per local date, even if the cron fires twice.
-        const claimed = await getRedis().set(`reminder:${userId}:${dateKey}:reminder`, "1", "EX", 86400, "NX");
+        const claimKey = `reminder:${userId}:${dateKey}:reminder`;
+        const claimed = await getRedis().set(claimKey, "1", "EX", 86400, "NX");
         if (!claimed) {
           result.details.push({ userId: userId.slice(0, 8), reason: "already sent today" });
           continue;
         }
 
-        const sendResult = await sendPush(userId, payload);
+        // Nothing went out, so give the claim back or later ticks that day
+        // would skip this user as "already sent".
+        let sendResult;
+        try {
+          sendResult = await sendPush(userId, payload);
+        } catch (err) {
+          await getRedis().del(claimKey);
+          throw err;
+        }
+        if (sendResult.sent === 0) await getRedis().del(claimKey);
         result.sent += sendResult.sent;
         result.failed += sendResult.failed;
         if (sendResult.errors.length > 0) result.errors.push(...sendResult.errors);

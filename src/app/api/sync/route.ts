@@ -139,12 +139,23 @@ export async function POST(req: NextRequest) {
     // Deep-merge helper for nested objects (completions, habits). logs and
     // recovery are the exception: each key is replaced wholesale, because the
     // client sends the full entry and a field it cleared would otherwise
-    // survive the merge forever.
+    // survive the merge forever. Recovery goes one level deeper below: a date
+    // entry is merged per source (eightSleep / oura), so a client that only
+    // holds one source can't erase the other one a cron wrote.
     const replacePerKey = new Set(["logs", "recovery"]);
     function deepMerge(existing: Record<string, unknown>, incoming: Record<string, unknown>, top = true): Record<string, unknown> {
       const result = { ...existing };
       for (const [k, v] of Object.entries(incoming)) {
-        if (top && replacePerKey.has(k) && v && typeof v === "object" && existing[k] && typeof existing[k] === "object") {
+        if (top && k === "recovery" && v && typeof v === "object" && existing[k] && typeof existing[k] === "object") {
+          const merged: Record<string, unknown> = { ...(existing[k] as Record<string, unknown>) };
+          for (const [date, entry] of Object.entries(v as Record<string, unknown>)) {
+            const prev = merged[date];
+            merged[date] = prev && typeof prev === "object" && entry && typeof entry === "object"
+              ? { ...(prev as object), ...(entry as object) }
+              : entry;
+          }
+          result[k] = merged;
+        } else if (top && replacePerKey.has(k) && v && typeof v === "object" && existing[k] && typeof existing[k] === "object") {
           result[k] = { ...(existing[k] as object), ...v };
         } else if (v && typeof v === "object" && !Array.isArray(v) && existing[k] && typeof existing[k] === "object" && !Array.isArray(existing[k])) {
           result[k] = deepMerge(existing[k] as Record<string, unknown>, v as Record<string, unknown>, false);

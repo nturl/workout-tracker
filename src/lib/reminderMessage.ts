@@ -217,7 +217,11 @@ export async function buildReminderPayload(ctx: ReminderContext): Promise<PushPa
   const day = planForWeek(wk).find((d) => d.day === ctx.dayName);
   const specifics = day ? specificWorkoutLine(day, level, wk) : workout.tip;
 
-  const bodyParts: string[] = [specifics];
+  // The day's training block, when it has one ("No set time" days and the
+  // legacy plan, which has no time, say nothing). In the body, not the title:
+  // the service worker cuts titles at 60 chars and Monday's is already long.
+  const blockTime = day?.time && day.time !== "No set time" ? day.time : null;
+  const bodyParts: string[] = [blockTime ? `${blockTime}: ${specifics}` : specifics];
   if (recovery) bodyParts.push(recovery.note);
   if (streak >= 3) bodyParts.push(`🔥 ${streak}-day streak — keep it.`);
   if (progress.done > 0 && progress.done < progress.total) {

@@ -74,6 +74,44 @@ describe("Sync flow integration", () => {
     expect(recovery.oura.readinessScore).toBe(82);
   });
 
+  it("keeps a source the client did not send when it pushes a recovery date (cron wrote oura)", async () => {
+    seedMockRedis({
+      "user:test-user-123:data": {
+        recovery: {
+          "2026-03-31": { date: "2026-03-31", oura: { readinessScore: 82 } },
+        },
+      },
+    });
+    await POST(makePost({
+      recovery: {
+        "2026-03-31": { date: "2026-03-31", eightSleep: { sleepFitnessScore: 86 } },
+      },
+    }));
+    const json = await (await GET(makeGet())).json();
+    const entry = json.data.recovery["2026-03-31"];
+    expect(entry.oura.readinessScore).toBe(82);
+    expect(entry.eightSleep.sleepFitnessScore).toBe(86);
+  });
+
+  it("a client-sent recovery source replaces the stored one, and a recovery tombstone still deletes the date", async () => {
+    seedMockRedis({
+      "user:test-user-123:data": {
+        recovery: {
+          "2026-03-31": { date: "2026-03-31", oura: { readinessScore: 82, sleepScore: 70 } },
+          "2026-04-01": { date: "2026-04-01", oura: { readinessScore: 60 } },
+        },
+      },
+    });
+    await POST(makePost({
+      syncMode: "delta",
+      recovery: { "2026-03-31": { date: "2026-03-31", oura: { readinessScore: 90 } } },
+      tombstones: { recovery: ["2026-04-01"] },
+    }));
+    const json = await (await GET(makeGet())).json();
+    expect(json.data.recovery["2026-03-31"].oura).toEqual({ readinessScore: 90 });
+    expect(json.data.recovery["2026-04-01"]).toBeUndefined();
+  });
+
   it("preserves existing data when updating a single field", async () => {
     // Seed with existing data
     seedMockRedis({

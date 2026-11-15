@@ -44,11 +44,19 @@ function parseRetryAfter(header: string | null): number | undefined {
   return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
 }
 
+// Browsers cap keepalive request bodies at 64KB (a larger one makes fetch
+// reject outright), so stay well under it. Deltas are a few hundred bytes, so
+// in practice every push qualifies; only a big first-sync bootstrap would not.
+const KEEPALIVE_MAX_CHARS = 32_000;
+
 async function pushSyncData(payload: SyncData): Promise<SyncPushResponse> {
+  const body = JSON.stringify(payload);
   const res = await fetch("/api/sync", {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Requested-With": "fetch" },
-    body: JSON.stringify(payload),
+    body,
+    // Lets the pagehide flush finish after iOS suspends or closes the page.
+    keepalive: body.length < KEEPALIVE_MAX_CHARS,
   });
   if (!res.ok) throw new SyncPushError(res.status, parseRetryAfter(res.headers.get("Retry-After")));
   return res.json();
@@ -108,7 +116,19 @@ export function useSync(enabled: boolean) {
   // V19: declared above the hydrate effect so the initial post-hydrate push can
   // route through the mutation and surface failures via syncStatus.
   const { mutate: pushSync, isPending: isSyncing, error: syncError } = useMutation({
-    mutationFn: pushSyncData,
+    // The delta is built here, when each attempt is sent, not captured as
+    // `variables` when the push was requested: a TanStack retry or a resumed
+    // paused mutation would otherwise replay an old snapshot and could revert
+    // a newer tap that a later push already delivered. Return what was sent so
+    // onSuccess acks exactly that.
+    mutationFn: async () => {
+      const sent = getSyncDelta();
+      const res = await pushSyncData(sent);
+      return { res, sent };
+    },
+    // Pushes run one at a time, so a later push's delta is built after the
+    // earlier one has been acked and cleared.
+    scope: { id: "sync" },
     // BUG-20: a permanent 4xx (bad payload, signed out, CSRF) will fail
     // identically every time — retrying it three times just delays the error
     // the UI needs to show. Transient statuses keep the old 3-attempt budget.
@@ -126,14 +146,14 @@ export function useSync(enabled: boolean) {
     },
     // Adopt the server's canonical habit list + version so a clock-skewed device
     // can't strand this device's edit, and so a rejected (stale) push converges.
-    onSuccess: (res, variables) => {
+    onSuccess: ({ res, sent }) => {
       applyHabitDefsAck(
         { habitDefs: res?.habitDefs, habitDefsVersion: res?.habitDefsVersion },
-        variables.habitDefs ?? [],
+        sent.habitDefs ?? [],
       );
       // Everything this push carried is now on the server; anything the user
       // changed while it was in flight stays dirty for the next one.
-      clearDirty(variables);
+      clearDirty(sent);
       // BUG-02: a habit-list edit the server REJECTED on a stale CAS base is
       // still dirty here, now rebased onto the canonical version. Re-send it,
       // or the protected edit would simply never land.
@@ -208,7 +228,7 @@ export function useSync(enabled: boolean) {
         delta.level !== undefined ||
         delta.tombstones !== undefined ||
         useWorkoutStore.getState().habitDefsDirty;
-      if (hasDirtyData) pushSync(delta);
+      if (hasDirtyData) pushSync();
     } else if (serverData && serverTs && serverTs !== lastServerUpdate.current) {
       // Server data changed (e.g. Oura cron/manual sync wrote new data) - re-hydrate
       lastServerUpdate.current = serverTs;
@@ -234,7 +254,7 @@ export function useSync(enabled: boolean) {
       debounceRef.current = null;
       // BUG-01: send only what this device actually changed. Sending the whole
       // store made every push a blind overwrite of keys it had merely read.
-      pushSync(getSyncDelta());
+      pushSync();
     }, 500);
   };
   debouncedPushRef.current = debouncedPush;
@@ -298,7 +318,7 @@ export function useSync(enabled: boolean) {
       if (!debounceRef.current) return;
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
-      pushSync(getSyncDelta());
+      pushSync();
     };
     const handleVisibility = () => {
       if (document.visibilityState === "hidden") {

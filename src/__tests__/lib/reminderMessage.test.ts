@@ -53,6 +53,23 @@ describe("reminderMessage", () => {
       expect(payload.body).toContain("Well recovered");
     });
 
+    it("leads the body with the day's training block time on the current plan", async () => {
+      // 2026-11-15 is the first week of the shifted plan: Sunday trains 5:00-5:45 PM ET.
+      const sunday = await buildReminderPayload({ userId: "u1", dayName: "Sunday", dateKey: "2026-11-15" });
+      expect(sunday.title).toContain("Super-Slow Strength");
+      expect(sunday.body.startsWith("5:00-5:45 PM ET: ")).toBe(true);
+      const monday = await buildReminderPayload({ userId: "u1", dayName: "Monday", dateKey: "2026-11-16" });
+      expect(monday.body.startsWith("7:45-8:30 AM ET: ")).toBe(true);
+    });
+
+    it("says nothing about time on days with no set time or on the legacy plan", async () => {
+      const friday = await buildReminderPayload({ userId: "u1", dayName: "Friday", dateKey: "2026-11-20" });
+      expect(friday.body).not.toContain("No set time");
+      expect(friday.body).not.toMatch(/\d:\d\d/);
+      const legacy = await buildReminderPayload({ userId: "u1", dayName: "Monday", dateKey: "2026-11-09" });
+      expect(legacy.body).not.toMatch(/ET:/);
+    });
+
     it("sets tag and URL", async () => {
       const payload = await buildReminderPayload({ userId: "u1", dayName: "Tuesday", dateKey: "2025-04-15" });
       expect(payload.tag).toBe("reminder-2025-04-15");

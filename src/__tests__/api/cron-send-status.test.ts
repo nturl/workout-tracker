@@ -175,6 +175,15 @@ describe("/api/cron/send-status (web push)", () => {
       expect(second.details[0].reason).toContain("already sent");
     });
 
+    it("releases the claim when nothing was sent, so a later tick retries", async () => {
+      mockSendNotification.mockRejectedValueOnce(new Error("push service down"));
+      const first = await (await GET(makeGet({}, `Bearer ${CRON_SECRET}`))).json();
+      expect(first.sent).toBe(0);
+      const second = await (await GET(makeGet({}, `Bearer ${CRON_SECRET}`))).json();
+      expect(second.sent).toBe(1);
+      expect(mockSendNotification).toHaveBeenCalledTimes(2);
+    });
+
     it("afternoon and evening are deduped separately", async () => {
       await GET(makeGet({}, `Bearer ${CRON_SECRET}`));
       vi.mocked(localTimeParts).mockReturnValue({ day: "Monday", hhmm: "18:00" });
