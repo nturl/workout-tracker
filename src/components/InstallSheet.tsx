@@ -86,13 +86,13 @@ function StepCaption({ n, children }: { n: number; children: React.ReactNode }) 
 
 export function InstallSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null);
-  const [ios, setIos] = useState(false);
-  const [installed, setInstalled] = useState(false);
+  // Lazy initializers, not a mount effect (see PushSetup): InstallSheet only
+  // mounts client-side, so the window guard is SSR insurance.
+  const [ios] = useState(() => typeof window !== "undefined" && isIOS());
+  const [installed] = useState(() => typeof window !== "undefined" && isStandalonePWA());
   const [shareLabel, setShareLabel] = useState("Share it with a friend");
 
   useEffect(() => {
-    setIos(isIOS());
-    setInstalled(isStandalonePWA());
     const onPrompt = (e: Event) => {
       e.preventDefault();
       setInstallEvent(e as InstallPromptEvent);

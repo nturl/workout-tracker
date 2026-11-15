@@ -391,10 +391,23 @@ describe("workoutData - schedule shift effective 2026-11-15", () => {
       expect(newDay.theme).toBe(legacyDay.theme);
       expect(newDay.sessions.map((s) => s.title)).toEqual(legacyDay.sessions.map((s) => s.title));
       legacyDay.sessions.forEach((legacy, i) => {
-        // Identical, time of day aside, once the weekday names in the legacy copy are moved back a day.
-        expect(JSON.stringify({ ...newDay.sessions[i], timeOfDay: "" })).toBe(shiftDayNames(JSON.stringify({ ...legacy, timeOfDay: "" })));
+        // Identical, time of day aside, once the weekday names in the legacy copy are moved back a day
+        // (and the evening-timing key point, which the morning block makes false, is dropped).
+        const legacyJson = JSON.stringify({ ...legacy, timeOfDay: "" }).replace('"Ideally done late afternoon or early evening, 3+ hours before bed",', "");
+        expect(JSON.stringify({ ...newDay.sessions[i], timeOfDay: "" })).toBe(shiftDayNames(legacyJson));
       });
     }
+  });
+
+  it("drops timing and spacing claims the new week makes false", () => {
+    const text = (plan: DayPlan[]) => JSON.stringify(plan);
+    expect(text(weeklyPlan)).not.toMatch(/3\+ hours before bed|48hrs before|hard cardio days are spaced/);
+    // The frozen plan keeps them.
+    expect(text(legacyWeeklyPlan)).toMatch(/3\+ hours before bed/);
+    expect(text(legacyWeeklyPlan)).toMatch(/48hrs before Friday's strength session/);
+    expect(text(legacyWeeklyPlan)).toMatch(/hard cardio days are spaced/);
+    // The rest of each note survives.
+    expect(weeklyPlan.find((d) => d.day === "Wednesday")!.programmingNotes!.reasoning).toMatch(/48hrs from Monday's Mitochondrial work\.$/);
   });
 
   it("history before 2026-11-15 keeps the old plan; that week onward uses the new one", () => {

@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback } from "react";
 import { weeklyPlan, planForWeek } from "@/lib/workoutData";
-import { DAYS, weekKey, sessionKey } from "@/lib/helpers";
+import { DAYS, weekKey, sessionKey, isSessionScheduled } from "@/lib/helpers";
 import { DOT_COLORS } from "@/lib/colors";
 import type { CompletionRecord } from "@/types/workout";
 
@@ -15,7 +15,9 @@ interface CellData {
   weekIdx: number;
 }
 
-export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions, compact = false }: { completions: CompletionRecord; compact?: boolean }) {
+// `todayKey` is deliberately not read: it only exists so the memo sees a prop
+// change when the day rolls over and re-renders (the body reads `new Date()`).
+export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions, compact = false }: { completions: CompletionRecord; compact?: boolean; todayKey?: string }) {
   const weeks = 8;
   const today = new Date();
   const [tapped, setTapped] = useState<string | null>(null);
@@ -39,8 +41,9 @@ export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions
         grid[dayIdx].push({ date: d, pct: 0, dayIdx, weekIdx });
         continue;
       }
-      const total = plan.sessions.length;
-      const done = plan.sessions.filter((s) => completions[sessionKey(wk, dayName, s)]).length;
+      const scheduled = plan.sessions.filter((s) => isSessionScheduled(s, wk));
+      const total = scheduled.length;
+      const done = scheduled.filter((s) => completions[sessionKey(wk, dayName, s)]).length;
       grid[dayIdx].push({ date: d, pct: total > 0 ? done / total : 0, dayIdx, weekIdx });
     }
   }
@@ -54,8 +57,9 @@ export const ConsistencyHeatmap = memo(function ConsistencyHeatmap({ completions
       const wk = weekKey(cell.date);
       const plan = planForWeek(wk).find((p) => p.day === dayName);
       if (!plan) continue;
-      total += plan.sessions.length;
-      done += plan.sessions.filter((s) => completions[sessionKey(wk, dayName, s)]).length;
+      const scheduled = plan.sessions.filter((s) => isSessionScheduled(s, wk));
+      total += scheduled.length;
+      done += scheduled.filter((s) => completions[sessionKey(wk, dayName, s)]).length;
     }
     return total > 0 ? Math.round((done / total) * 100) : 0;
   });

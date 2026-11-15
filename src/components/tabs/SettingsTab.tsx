@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { type Level } from "@/lib/workoutData";
 import { PushSetup } from "@/components/settings/PushSetup";
 import { ConnectedAccounts } from "@/components/settings/ConnectedAccounts";
@@ -29,12 +29,10 @@ export function SettingsTab({ syncNow }: SettingsTabProps) {
   const timerSettings = useWorkoutStore((s) => s.timerSettings);
   const setTimerSettings = useWorkoutStore((s) => s.setTimerSettings);
   const { theme, setTheme } = useTheme();
-  const [standalone, setStandalone] = useState(true);
+  // Lazy initializer, not a mount effect: Settings is lazy-loaded, so it only
+  // mounts client-side and the window guard is SSR insurance.
+  const [standalone] = useState(() => typeof window === "undefined" || isStandalonePWA());
   const [installOpen, setInstallOpen] = useState(false);
-
-  useEffect(() => {
-    setStandalone(isStandalonePWA());
-  }, []);
 
   const handleSetLevel = (l: Level) => {
     setLevel(l);

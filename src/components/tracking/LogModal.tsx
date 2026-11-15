@@ -20,6 +20,14 @@ function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
+// Negative values are dropped: the server validator is nonnegative and would
+// silently reject the whole log.
+function nonNegative(raw: string): number | undefined {
+  if (!raw) return undefined;
+  const n = Number(raw);
+  return n >= 0 ? n : undefined;
+}
+
 interface LogModalProps {
   session: WorkoutSession;
   logKey: string;
@@ -85,7 +93,7 @@ export function LogModal({ session, logKey, logs, level, onSave, onClose }: LogM
               </button>
             ))}
           </div>
-          <input id="log-duration" type="number" value={duration || ""} onChange={(e) => setDuration(parseInt(e.target.value) || 0)} placeholder="Custom minutes"
+          <input id="log-duration" type="number" value={duration || ""} onChange={(e) => setDuration(Math.max(0, parseInt(e.target.value) || 0))} placeholder="Custom minutes"
             className="input-field w-full h-11 px-4 rounded-button border border-border-active outline-none transition-all text-base leading-[22px] tabular-nums bg-surface-input text-content-primary" />
         </div>
         <div>
@@ -118,19 +126,19 @@ export function LogModal({ session, logKey, logs, level, onSave, onClose }: LogM
                         <div>
                           <label htmlFor={`ex-weight-${slug}`} className="text-[10px] font-medium block mb-1 text-content-muted">Weight</label>
                           <input id={`ex-weight-${slug}`} type="number" inputMode="decimal" value={log.weight ?? ""} placeholder="lbs"
-                            onChange={(e) => updateExercise(slug, "weight", e.target.value ? Number(e.target.value) : undefined)}
+                            onChange={(e) => updateExercise(slug, "weight", nonNegative(e.target.value))}
                             className="input-field w-full px-2 py-1.5 rounded-lg border border-border text-base font-mono outline-none bg-surface-input text-content-primary" />
                         </div>
                         <div>
                           <label htmlFor={`ex-reps-${slug}`} className="text-[10px] font-medium block mb-1 text-content-muted">Reps</label>
                           <input id={`ex-reps-${slug}`} type="number" inputMode="decimal" value={log.reps ?? ""} placeholder="#"
-                            onChange={(e) => updateExercise(slug, "reps", e.target.value ? Number(e.target.value) : undefined)}
+                            onChange={(e) => updateExercise(slug, "reps", nonNegative(e.target.value))}
                             className="input-field w-full px-2 py-1.5 rounded-lg border border-border text-base font-mono outline-none bg-surface-input text-content-primary" />
                         </div>
                         <div>
                           <label htmlFor={`ex-sets-${slug}`} className="text-[10px] font-medium block mb-1 text-content-muted">Sets</label>
                           <input id={`ex-sets-${slug}`} type="number" inputMode="decimal" value={log.sets ?? ""} placeholder="#"
-                            onChange={(e) => updateExercise(slug, "sets", e.target.value ? Number(e.target.value) : undefined)}
+                            onChange={(e) => updateExercise(slug, "sets", nonNegative(e.target.value))}
                             className="input-field w-full px-2 py-1.5 rounded-lg border border-border text-base font-mono outline-none bg-surface-input text-content-primary" />
                         </div>
                       </div>
@@ -152,7 +160,7 @@ export function LogModal({ session, logKey, logs, level, onSave, onClose }: LogM
           onSave(logKey, {
             ...existing,
             notes, duration, feeling,
-            completedAt: new Date().toISOString(),
+            completedAt: existing.completedAt || new Date().toISOString(),
             ...(hasExerciseData ? { exerciseLogs } : {}),
           });
           onClose();

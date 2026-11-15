@@ -1105,15 +1105,25 @@ export function shiftDayNames(text: string): string {
   return text.replace(/Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday/g, (d) => WEEKDAYS[(WEEKDAYS.indexOf(d) + 6) % 7]);
 }
 
+// Claims in the legacy copy that stop being true once the days move: the
+// detox session now falls in the 7:45 AM block, and Tabata/VO2 now sits the day
+// before a strength day. Dropped from the derived plan only (legacy text is
+// matched, before the day names shift).
+const STALE_KEY_POINTS = new Set(["Ideally done late afternoon or early evening, 3+ hours before bed"]);
+const STALE_CLAUSES = [
+  " and 48hrs before Friday's strength session",
+  " so the week's hard cardio days are spaced from Monday and Friday strength sessions",
+];
+
 // Memoized so objects shared in the legacy plan (the daily posture sessions,
 // the lift arrays both strength days point at) stay shared in the new one.
 const shifted = new WeakMap<object, unknown>();
 function shiftStrings<T>(value: T): T {
-  if (typeof value === "string") return shiftDayNames(value) as T;
+  if (typeof value === "string") return shiftDayNames(STALE_CLAUSES.reduce((t, c) => t.replace(c, ""), value)) as T;
   if (!value || typeof value !== "object") return value;
   if (shifted.has(value)) return shifted.get(value) as T;
   const copy = Array.isArray(value)
-    ? value.map(shiftStrings)
+    ? value.filter((v) => !STALE_KEY_POINTS.has(v as string)).map(shiftStrings)
     : Object.fromEntries(Object.entries(value).map(([k, v]) => [k, shiftStrings(v)]));
   shifted.set(value, copy);
   return copy as T;

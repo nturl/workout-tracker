@@ -177,7 +177,8 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
   const ouraStatus = useOuraStatus();
 
   useEffect(() => {
-    if (!mounted || weekTotal === 0) return;
+    // Only the current week: paging back to an old complete week must not push.
+    if (!mounted || !isCurrentWeek || weekTotal === 0) return;
     if (weekDone === weekTotal) {
       const markerKey = `workout-push-week-${wk}`;
       try {
@@ -186,7 +187,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
       } catch {}
       notifyWeekComplete(wk);
     }
-  }, [mounted, weekDone, weekTotal, wk]);
+  }, [mounted, isCurrentWeek, weekDone, weekTotal, wk]);
 
   useEffect(() => {
     if (!mounted || streak === 0) return;
@@ -235,7 +236,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
           <StreakCounter streak={streak} weekDone={weekDone} weekTotal={weekTotal} bestStreak={bestStreak} />
         </div>
 
-        <WeekRhythm selectedDay={selectedDay} onSelectDay={setSelectedDay} weekOffset={weekOffset} onChangeWeek={setWeekOffset} />
+        <WeekRhythm selectedDay={selectedDay} onSelectDay={setSelectedDay} weekOffset={weekOffset} onChangeWeek={setWeekOffset} todayKey={today} />
       </div>
 
       <div className="max-w-lg mx-auto px-5 mt-5 pb-24">
@@ -512,7 +513,7 @@ export function WorkoutsTab({ syncStatus, syncNow, onOpenRecovery }: WorkoutsTab
         <div className="mt-8">
           <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] mb-3" style={{ color: "var(--text-secondary)" }}>8-Week Momentum</h3>
           <div className="glass-card rounded-card p-5">
-            <MomentumChart completions={completions} />
+            <MomentumChart completions={completions} todayKey={today} />
           </div>
         </div>
       </div>

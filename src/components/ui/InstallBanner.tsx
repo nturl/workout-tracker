@@ -1,22 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { InstallSheet } from "@/components/InstallSheet";
 import { isStandalonePWA } from "@/lib/pushClient";
 
 const DISMISSED_KEY = "install-banner-dismissed";
 
 export function InstallBanner() {
-  const [standalone, setStandalone] = useState(true);
+  // Lazy initializers, not a mount effect: only mounts client-side (behind the
+  // auth gate), so the window guard is SSR insurance.
+  const [standalone] = useState(() => typeof window === "undefined" || isStandalonePWA());
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window === "undefined") return true;
-    return localStorage.getItem(DISMISSED_KEY) === "true";
+    try {
+      return localStorage.getItem(DISMISSED_KEY) === "true";
+    } catch {
+      return false;
+    }
   });
-
-  useEffect(() => {
-    setStandalone(isStandalonePWA());
-  }, []);
 
   if (standalone || dismissed) return null;
 

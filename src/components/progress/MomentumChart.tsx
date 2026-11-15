@@ -2,7 +2,7 @@
 
 import { memo, useState } from "react";
 import { planForWeek } from "@/lib/workoutData";
-import { DAYS, weekKey, sessionKey } from "@/lib/helpers";
+import { DAYS, weekKey, sessionKey, isSessionScheduled } from "@/lib/helpers";
 import { ConsistencyHeatmap } from "@/components/progress/Heatmap";
 import { Icon } from "@/components/ui/Icon";
 import type { CompletionRecord } from "@/types/workout";
@@ -24,7 +24,9 @@ function Stat({ label, value, sub }: { label: string; value: string; sub: string
  * momentum read. Tap to expand for week highlights and the day-of-week pattern.
  * Themed via tokens (currentColor = --accent) for light + dark.
  */
-export const MomentumChart = memo(function MomentumChart({ completions }: { completions: CompletionRecord }) {
+// `todayKey` is only passed through (and makes the memo re-render when the day
+// rolls over, since the body reads `new Date()`).
+export const MomentumChart = memo(function MomentumChart({ completions, todayKey }: { completions: CompletionRecord; todayKey?: string }) {
   const [expanded, setExpanded] = useState(false);
   const today = new Date();
 
@@ -48,8 +50,9 @@ export const MomentumChart = memo(function MomentumChart({ completions }: { comp
       const wk = weekKey(day);
       const plan = planForWeek(wk).find((p) => p.day === dayName);
       if (!plan) continue;
-      total += plan.sessions.length;
-      done += plan.sessions.filter((s) => completions[sessionKey(wk, dayName, s)]).length;
+      const scheduled = plan.sessions.filter((s) => isSessionScheduled(s, wk));
+      total += scheduled.length;
+      done += scheduled.filter((s) => completions[sessionKey(wk, dayName, s)]).length;
     }
     doneArr.push(done);
     totalArr.push(total);
@@ -150,7 +153,7 @@ export const MomentumChart = memo(function MomentumChart({ completions }: { comp
             <span className="text-content-primary font-bold">{weeksAboveAvg} of {WEEKS}</span> weeks at or above your average. Pattern by day:
           </p>
 
-          <ConsistencyHeatmap completions={completions} compact />
+          <ConsistencyHeatmap completions={completions} todayKey={todayKey} compact />
         </div>
       )}
     </div>

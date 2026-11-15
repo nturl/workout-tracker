@@ -18,12 +18,18 @@ const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:
 export function Sheet({ open, onClose, children, title, subtitle }: SheetProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  // Held in a ref so an inline `onClose` (new identity every parent render)
+  // doesn't re-run the open effect and re-focus Close mid-typing.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
   const titleId = title ? `sheet-title-${title.replace(/\s+/g, "-").toLowerCase()}` : undefined;
 
   // Handle keyboard events
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") {
-      onClose();
+      onCloseRef.current();
       return;
     }
     // Focus trap
@@ -40,7 +46,7 @@ export function Sheet({ open, onClose, children, title, subtitle }: SheetProps) 
         first.focus();
       }
     }
-  }, [onClose]);
+  }, []);
 
   useEffect(() => {
     if (open) {

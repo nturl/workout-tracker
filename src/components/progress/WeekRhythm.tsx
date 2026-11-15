@@ -10,6 +10,8 @@ interface WeekRhythmProps {
   onSelectDay: (day: string) => void;
   weekOffset: number;
   onChangeWeek: (offset: number) => void;
+  /** Not read: a changed value makes the memo re-render after a day rollover. */
+  todayKey?: string;
 }
 
 export const WeekRhythm = memo(function WeekRhythm({ selectedDay, onSelectDay, weekOffset, onChangeWeek }: WeekRhythmProps) {
