@@ -231,11 +231,13 @@ export function useExtractLabs() {
     mutationFn: async (payload: { imageDataUrl: string; date?: string; source?: string }) => {
       const res = await fetch("/api/extract-labs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Requested-With": "fetch" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed" }));
+        // Vercel's 413 for an oversized body is not JSON.
+        const err = res.status === 413 ? null : await res.json().catch(() => null);
+        if (!err) throw new Error("File too large to upload");
         throw new Error(err.error ?? "Extraction failed");
       }
       return res.json();

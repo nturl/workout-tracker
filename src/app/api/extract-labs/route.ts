@@ -4,19 +4,20 @@ import Anthropic from "@anthropic-ai/sdk";
 import { rateLimit, rateLimitResponse, checkCsrf, csrfResponse } from "@/lib/rateLimit";
 import { getRedis } from "@/lib/redis";
 import { extractLabSchema } from "@/lib/validators";
-import { BIOMARKERS, findBiomarker } from "@/lib/biomarkerData";
+import { BIOMARKERS, findBiomarker, getBiomarkerById, toCatalogValue } from "@/lib/biomarkerData";
 import { importLab } from "@/lib/biomarkerStore";
 import type { MarkerInput } from "@/types/biomarker";
 
 export const maxDuration = 60;
 
-const MARKER_IDS = BIOMARKERS.map((m) => m.id).join(", ");
+const CATALOG = BIOMARKERS.map((m) => `${m.id}: ${m.name} (${m.unit})`).join("\n");
 
 const LAB_EXTRACT_PROMPT = `You are a medical lab report parser. Extract ALL biomarker values from this lab report image.
 
 For each marker found, return:
 - "name": the exact name as printed on the report
-- "value": numeric value (number, not string)
+- "id": the id of the matching catalog marker below, or null when none fits. Never force a fit. Tell apart percentage and absolute differential counts (e.g. neutrophils_pct vs neutrophils_abs) and total vs free/direct forms (e.g. testosterone_total vs testosterone_free, bilirubin_total vs bilirubin_direct).
+- "value": numeric value (a number). If the result is not a plain number (e.g. "<0.3", "Negative"), return it as a string exactly as printed
 - "unit": the unit of measurement
 - "flag": any flag like "HIGH", "LOW", "H", "L", "HH", "LL", or null
 - "refRange": the reference range string as printed (e.g. "70-100") or null
@@ -32,17 +33,18 @@ Return ONLY valid JSON in this exact format:
   "reportDate": "<YYYY-MM-DD or null>",
   "panelName": "<string or null>",
   "markers": [
-    { "name": "<string>", "value": <number>, "unit": "<string>", "flag": "<string or null>", "refRange": "<string or null>" }
+    { "name": "<string>", "id": "<catalog id or null>", "value": <number>, "unit": "<string>", "flag": "<string or null>", "refRange": "<string or null>" }
   ]
 }
 
-Known biomarker IDs for matching: ${MARKER_IDS}
+Catalog (id: name (unit)):\n${CATALOG}
 
 Be thorough - extract EVERY numeric result visible on the report. Do not skip any markers.`;
 
 interface ExtractedMarker {
   name: string;
-  value: number;
+  id?: string | null;
+  value: number | string;
   unit: string;
   flag?: string | null;
   refRange?: string | null;
@@ -151,25 +153,36 @@ export async function POST(req: NextRequest) {
 
     // Match extracted markers to our biomarker database
     const matched: (MarkerInput & { originalName: string; matched: boolean })[] = [];
-    const unmatched: ExtractedMarker[] = [];
+    const skipped: { name: string; reason: string }[] = [];
 
     for (const em of cappedMarkers) {
-      if (typeof em.value !== "number" || !isFinite(em.value)) continue;
-
-      const meta = findBiomarker(em.name);
-      if (meta) {
-        matched.push({
-          biomarkerId: meta.id,
-          value: em.value,
-          unit: em.unit || meta.unit,
-          flag: em.flag ?? undefined,
-          refRangeRaw: em.refRange ?? undefined,
-          originalName: em.name,
-          matched: true,
-        });
-      } else {
-        unmatched.push(em);
+      if (typeof em.value !== "number" || !isFinite(em.value)) {
+        skipped.push({ name: em.name, reason: "not a number" });
+        continue;
       }
+
+      const meta = (typeof em.id === "string" ? getBiomarkerById(em.id) : undefined) ?? findBiomarker(em.name);
+      if (!meta) {
+        skipped.push({ name: em.name, reason: "not tracked" });
+        continue;
+      }
+
+      const unit = em.unit ?? "";
+      const value = toCatalogValue(meta, em.value, unit);
+      if (value === null) {
+        skipped.push({ name: em.name, reason: `unit ${unit || "(none)"} not supported` });
+        continue;
+      }
+
+      matched.push({
+        biomarkerId: meta.id,
+        value,
+        unit: meta.unit,
+        flag: em.flag ?? undefined,
+        refRangeRaw: em.refRange ?? undefined,
+        originalName: em.name,
+        matched: true,
+      });
     }
 
     // Determine date and source
@@ -212,11 +225,11 @@ export async function POST(req: NextRequest) {
         unit: m.unit,
         flag: m.flag,
       })),
-      unmatched,
+      skipped,
       stats: {
-        total: extraction.markers.length,
+        total: cappedMarkers.length,
         matched: matched.length,
-        unmatched: unmatched.length,
+        skipped: skipped.length,
       },
     });
   } catch (error) {

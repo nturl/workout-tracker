@@ -206,6 +206,84 @@ export function getMarkersByCategory(category: BiomarkerCategory): BiomarkerMeta
 }
 
 // ---------------------------------------------------------------------------
+// Unit reconciliation
+// ---------------------------------------------------------------------------
+
+/** Lowercase, no spaces, µ -> u, and one spelling per equivalent unit. */
+function normUnit(unit: string): string {
+  const u = unit
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[µμ]/g, "u")
+    .replace(/^mcg/, "ug")
+    .replace(/[\^*]/g, "")
+    .replace(/\/mcl$/, "/ul")
+    .replace("mm2", "m2");
+  if (u === "iu/l") return "u/l";
+  if (/^(x?10e?3|k|thou|thousand)\/ul$/.test(u)) return "k/ul";
+  if (/^(x?10e?6|m|mill|million)\/ul$/.test(u)) return "m/ul";
+  // Same quantity, different spelling.
+  if (u === "miu/l") return "uiu/ml";
+  if (u === "ug/l") return "ng/ml";
+  if (u === "sec" || u === "s") return "seconds";
+  if (u === "mm/h") return "mm/hr";
+  if (u.startsWith("%")) return "%";
+  if (u === "ml/min/1.73" || u === "ml/min/1.73m2") return "ml/min/1.73m2";
+  return u;
+}
+
+const MMOL_AS_MEQ = new Set(["sodium", "potassium", "chloride", "co2", "anion_gap"]);
+
+// SI unit (normalised) -> conventional value, for the markers we convert.
+const SI_CONVERSIONS: Record<string, { unit: string; to: (v: number) => number }> = {
+  glucose: { unit: "mmol/l", to: (v) => v * 18.016 },
+  total_cholesterol: { unit: "mmol/l", to: (v) => v * 38.67 },
+  ldl: { unit: "mmol/l", to: (v) => v * 38.67 },
+  hdl: { unit: "mmol/l", to: (v) => v * 38.67 },
+  vldl: { unit: "mmol/l", to: (v) => v * 38.67 },
+  triglycerides: { unit: "mmol/l", to: (v) => v * 88.57 },
+  creatinine: { unit: "umol/l", to: (v) => v / 88.4 },
+  bun: { unit: "mmol/l", to: (v) => v * 2.801 },
+  uric_acid: { unit: "umol/l", to: (v) => v / 59.48 },
+  calcium: { unit: "mmol/l", to: (v) => v * 4.008 },
+  bilirubin_total: { unit: "umol/l", to: (v) => v / 17.1 },
+  bilirubin_direct: { unit: "umol/l", to: (v) => v / 17.1 },
+  hemoglobin: { unit: "g/l", to: (v) => v / 10 },
+  mchc: { unit: "g/l", to: (v) => v / 10 },
+  albumin: { unit: "g/l", to: (v) => v / 10 },
+  total_protein: { unit: "g/l", to: (v) => v / 10 },
+  globulin: { unit: "g/l", to: (v) => v / 10 },
+  vitamin_d: { unit: "nmol/l", to: (v) => v / 2.496 },
+  vitamin_b12: { unit: "pmol/l", to: (v) => v * 1.355 },
+  folate: { unit: "nmol/l", to: (v) => v / 2.266 },
+  testosterone_total: { unit: "nmol/l", to: (v) => v * 28.84 },
+  estradiol: { unit: "pmol/l", to: (v) => v / 3.671 },
+  cortisol: { unit: "nmol/l", to: (v) => v / 27.59 },
+  iron: { unit: "umol/l", to: (v) => v * 5.585 },
+  tibc: { unit: "umol/l", to: (v) => v * 5.585 },
+  free_t4: { unit: "pmol/l", to: (v) => v / 12.87 },
+  hba1c: { unit: "mmol/mol", to: (v) => v / 10.929 + 2.15 },
+};
+
+/**
+ * Express a reported value in the catalog's unit for `meta`.
+ * Returns the value unchanged for an equivalent unit, a converted value for the
+ * known SI conversions above, and null when the unit cannot be reconciled.
+ */
+export function toCatalogValue(meta: BiomarkerMeta, value: number, unit: string): number | null {
+  const u = normUnit(unit);
+  const target = normUnit(meta.unit);
+  if (u === target) return value;
+  // No unit printed: take the number as given, as the import always has.
+  if (u === "") return value;
+  if (MMOL_AS_MEQ.has(meta.id) && u === "mmol/l") return value;
+
+  const conv = SI_CONVERSIONS[meta.id];
+  if (conv && u === conv.unit) return Math.round(conv.to(value) * 1000) / 1000;
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Status calculation
 // ---------------------------------------------------------------------------
 

@@ -264,24 +264,82 @@ function ImportView({ onComplete }: { onComplete: () => void }) {
   const [date, setDate] = useState("");
   const [source, setSource] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
+    setFileError(null);
+    extract.reset();
+    if (file.type === "application/pdf" && file.size > 3 * 1024 * 1024) {
+      setPreview(null);
+      setFileError("This PDF is too large. Upload one page or a photo instead.");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
-      setPreview(reader.result as string);
+      const dataUrl = reader.result as string;
+      if (file.type === "application/pdf") {
+        setPreview(dataUrl);
+        return;
+      }
+      // Downscale photos so the upload stays under the host's request limit.
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, 2000 / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return setFileError("Could not read that image.");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setPreview(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => setFileError("Could not read that image.");
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [extract]);
 
   const handleExtract = useCallback(() => {
     if (!preview) return;
-    extract.mutate(
-      { imageDataUrl: preview, date: date || undefined, source: source || undefined },
-      { onSuccess: () => onComplete() },
+    extract.mutate({ imageDataUrl: preview, date: date || undefined, source: source || undefined });
+  }, [preview, date, source, extract]);
+
+  const result = extract.isSuccess ? extract.data : null;
+  const skipped: { name: string; reason: string }[] = result?.skipped ?? [];
+  const skippedList = skipped.length > 0 && (
+    <div className="mt-3">
+      <p className="text-xs font-semibold mb-1 text-content-muted">Skipped ({skipped.length})</p>
+      <ul className="max-h-40 overflow-y-auto space-y-1">
+        {skipped.map((s, i) => (
+          <li key={i} className="text-xs text-content-muted">
+            <span className="font-medium text-content-primary">{s.name}</span> - {s.reason}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
+  if (result && result.stats.matched > 0) {
+    return (
+      <div className="space-y-4">
+        <h3 className="font-display text-xl font-bold tracking-[-0.02em] text-content-primary">Import Lab Report</h3>
+        <div className="glass-card rounded-card p-4">
+          <p className="text-sm font-bold text-content-primary">Imported {result.stats.matched} results</p>
+          {result.lab?.date && <p className="text-xs font-medium text-content-muted">Report date: {result.lab.date}</p>}
+          {skippedList}
+        </div>
+        <button
+          onClick={onComplete}
+          className="pressable w-full h-11 rounded-button text-[13px] font-medium bg-accent text-accent-contrast"
+        >
+          Done
+        </button>
+      </div>
     );
-  }, [preview, date, source, extract, onComplete]);
+  }
 
   return (
     <div className="space-y-4">
@@ -353,16 +411,12 @@ function ImportView({ onComplete }: { onComplete: () => void }) {
         </p>
       )}
 
-      {extract.isSuccess && extract.data && (
+      {fileError && <p className="text-xs text-center text-danger">{fileError}</p>}
+
+      {result && (
         <div className="glass-card rounded-card p-4">
-          <p className="text-sm font-bold mb-1 text-content-primary">
-            Extracted {extract.data.stats.matched} markers
-          </p>
-          {extract.data.stats.unmatched > 0 && (
-            <p className="text-xs font-medium text-content-muted">
-              {extract.data.stats.unmatched} unrecognized markers skipped
-            </p>
-          )}
+          <p className="text-sm font-bold text-content-primary">No results could be imported from this file.</p>
+          {skippedList}
         </div>
       )}
     </div>
